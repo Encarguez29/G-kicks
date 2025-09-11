@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Orders - G-Kicks</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            white-space: pre-line;
+        }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background-color: #0056b3; }
+        .clear-btn { background-color: #dc3545; }
+        .clear-btn:hover { background-color: #c82333; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug Orders Issue</h1>
+        <p>This page will help us figure out why "My Orders" shows "No orders yet"</p>
+        
+        <div class="actions">
+            <button onclick="checkCurrentUser()">1. Check Current User</button>
+            <button onclick="testOrdersAPI()">2. Test Orders API</button>
+            <button onclick="checkAllUsers()">3. Check All Users & Orders</button>
+            <button onclick="clearAuth()" class="clear-btn">Clear Auth & Logout</button>
+        </div>
+        
+        <div id="status" class="status info">Click a button above to start debugging...</div>
+    </div>
+
+    <script>
+        function showStatus(message, isSuccess = false, isError = false) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + (isError ? 'error' : isSuccess ? 'success' : 'info');
+        }
+        
+        function checkCurrentUser() {
+            const token = localStorage.getItem('auth_token');
+            
+            if (!token) {
+                showStatus('❌ No auth token found - you are not logged in\nPlease log in first at /login', false, true);
+                return;
+            }
+            
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    showStatus('❌ Invalid JWT token format\nToken parts: ' + parts.length + ' (should be 3)', false, true);
+                    return;
+                }
+                
+                const payload = JSON.parse(atob(parts[1]));
+                let status = '✅ Current User Info:\n';
+                status += `User ID: ${payload.userId}\n`;
+                status += `Email: ${payload.email}\n`;
+                status += `Role: ${payload.role || 'Not specified'}\n`;
+                if (payload.exp) {
+                    status += `Expires: ${new Date(payload.exp * 1000).toLocaleString()}\n`;
+                }
+                status += '\n📊 Orders in Database:\n';
+                status += '- User ID 1 (gkcksdmn@gmail.com): 4 orders\n';
+                status += '- User ID 20 (funnyromeo1221@gmail.com): 6 orders\n';
+                status += '\n🎯 Analysis:\n';
+                if (payload.userId == 1 || payload.userId == 20) {
+                    status += '✅ You should see orders! If not, there\'s an API issue.';
+                } else {
+                    status += '❌ You have no orders. You\'re logged in as User ID ' + payload.userId + ' but orders exist for User IDs 1 and 20.';
+                }
+                
+                showStatus(status, true, false);
+            } catch (error) {
+                showStatus('❌ Error decoding JWT token:\n' + error.message, false, true);
+            }
+        }
+        
+        async function testOrdersAPI() {
+            const token = localStorage.getItem('auth_token');
+            
+            if (!token) {
+                showStatus('❌ Cannot test Orders API: No JWT token found\nPlease log in first', false, true);
+                return;
+            }
+            
+            try {
+                showStatus('🔄 Testing Orders API...');
+                
+                const response = await fetch('/api/orders', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    cache: 'no-cache'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    let status = `✅ Orders API Test: SUCCESS\n`;
+                    status += `Status: ${response.status}\n`;
+                    status += `Orders found: ${Array.isArray(data) ? data.length : 0}\n`;
+                    
+                    if (Array.isArray(data) && data.length > 0) {
+                        status += '\n📦 Your Orders:\n';
+                        data.forEach((order, i) => {
+                            status += `${i+1}. Order #${order.order_number || order.id}\n`;
+                            status += `   Status: ${order.status}\n`;
+                            status += `   Total: $${order.total}\n`;
+                            status += `   Date: ${new Date(order.created_at).toLocaleDateString()}\n\n`;
+                        });
+                    } else {
+                        status += '\n❌ No orders returned - this explains why "My Orders" is empty!';
+                    }
+                    
+                    showStatus(status, true, false);
+                } else {
+                    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                    let status = `❌ Orders API Test: FAILED\n`;
+                    status += `Status: ${response.status}\n`;
+                    status += `Error: ${JSON.stringify(errorData)}\n`;
+                    
+                    if (response.status === 401) {
+                        status += '\n🔑 This is an authentication issue!';
+                    }
+                    
+                    showStatus(status, false, true);
+                }
+            } catch (error) {
+                showStatus(`❌ Orders API Test: NETWORK ERROR\nError: ${error.message}`, false, true);
+            }
+        }
+        
+        async function checkAllUsers() {
+            showStatus('🔄 Checking all users and orders in database...');
+            
+            try {
+                // This will make a request to a debug endpoint we'll create
+                const response = await fetch('/api/debug/users-orders', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    cache: 'no-cache'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    showStatus(`✅ Database Check Complete:\n${data.summary}`, true, false);
+                } else {
+                    showStatus('❌ Could not check database. This endpoint might not exist yet.', false, true);
+                }
+            } catch (error) {
+                showStatus(`❌ Error checking database: ${error.message}`, false, true);
+            }
+        }
+        
+        function clearAuth() {
+            localStorage.removeItem('auth_token');
+            showStatus('✅ Authentication data cleared\nYou are now logged out. Go to /login to log in again.', true, false);
+        }
+        
+        // Auto-check on page load
+        window.onload = () => {
+            showStatus('🚀 Debug page loaded. Click "Check Current User" to start.');
+        };
+    </script>
+</body>
+</html>

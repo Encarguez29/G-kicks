@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Orders Token</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .token-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #007bff;
+        }
+        .success { border-left-color: #28a745; }
+        .error { border-left-color: #dc3545; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Test Orders Token</h1>
+        <p>This page helps test the JWT token and orders API.</p>
+        
+        <button onclick="checkToken()">Check JWT Token</button>
+        <button onclick="testOrdersAPI()">Test Orders API</button>
+        <button onclick="generateNewToken()">Generate New Token</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function checkToken() {
+            // Check both possible token keys
+            const authToken = localStorage.getItem('authToken');
+            const auth_token = localStorage.getItem('auth_token');
+            const resultsDiv = document.getElementById('results');
+            
+            const token = auth_token || authToken; // Prefer auth_token (correct key)
+            
+            if (token) {
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    
+                    resultsDiv.innerHTML = `
+                        <div class="token-info success">
+                            <h3>✅ JWT Token Found!</h3>
+                            <p><strong>Token Key Used:</strong> ${auth_token ? 'auth_token (✓ correct)' : 'authToken (⚠️ wrong key)'}</p>
+                            <p><strong>Token Length:</strong> ${token.length} characters</p>
+                            <p><strong>User ID:</strong> ${payload.userId || 'N/A'}</p>
+                            <p><strong>Email:</strong> ${payload.email || 'N/A'}</p>
+                            <p><strong>Role:</strong> ${payload.role || 'N/A'}</p>
+                            <p><strong>Expires:</strong> ${new Date(payload.exp * 1000).toLocaleString()}</p>
+                            <div style="margin-top: 10px; padding: 8px; background: #f0f8ff; border-left: 4px solid #007bff;">
+                                <strong>Debug Info:</strong><br>
+                                authToken in localStorage: ${authToken ? 'Yes' : 'No'}<br>
+                                auth_token in localStorage: ${auth_token ? 'Yes' : 'No'}
+                            </div>
+                            <h4>Full Payload:</h4>
+                            <pre>${JSON.stringify(payload, null, 2)}</pre>
+                        </div>
+                    `;
+                } catch (e) {
+                    resultsDiv.innerHTML = `
+                        <div class="token-info error">
+                            <h3>❌ Token Decode Error</h3>
+                            <p>Error: ${e.message}</p>
+                            <p><strong>Token Key Used:</strong> ${auth_token ? 'auth_token' : 'authToken'}</p>
+                            <p>Token: ${token.substring(0, 100)}...</p>
+                        </div>
+                    `;
+                }
+            } else {
+                resultsDiv.innerHTML = `
+                    <div class="token-info error">
+                        <h3>❌ No JWT Token Found</h3>
+                        <p>No token found in localStorage under 'authToken' or 'auth_token' keys.</p>
+                        <p>Please log in first to get a JWT token.</p>
+                        <button onclick="generateToken()" style="margin-top: 10px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Generate JWT from Session</button>
+                        <div style="margin-top: 10px; padding: 8px; background: #fff3cd; border-left: 4px solid #ffc107;">
+                            <strong>All localStorage keys:</strong><br>
+                            ${Object.keys(localStorage).join(', ') || 'None'}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        async function testOrdersAPI() {
+            const resultsDiv = document.getElementById('results');
+            // Check both possible token keys
+            const authToken = localStorage.getItem('authToken');
+            const auth_token = localStorage.getItem('auth_token');
+            const token = auth_token || authToken; // Prefer auth_token (correct key)
+            
+            if (!token) {
+                resultsDiv.innerHTML = `
+                    <div class="token-info error">
+                        <h3>❌ No Token</h3>
+                        <p>No token found in localStorage under 'authToken' or 'auth_token' keys.</p>
+                        <div style="margin-top: 10px; padding: 8px; background: #fff3cd; border-left: 4px solid #ffc107;">
+                            <strong>All localStorage keys:</strong><br>
+                            ${Object.keys(localStorage).join(', ') || 'None'}
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            try {
+                resultsDiv.innerHTML = '<div class="token-info">🔄 Testing full authentication flow...</div>';
+                
+                // First test /api/auth/me
+                const authResponse = await fetch('/api/auth/me', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const authData = await authResponse.json();
+                
+                let authResult = '';
+                if (authResponse.ok) {
+                    authResult = `✅ Auth Check: SUCCESS\nUser ID: ${authData.user?.id}\nEmail: ${authData.user?.email}\n\n`;
+                } else {
+                    authResult = `❌ Auth Check: FAILED\nStatus: ${authResponse.status}\nError: ${authData.error}\n\n`;
+                }
+                
+                // Then test orders API
+                const ordersResponse = await fetch('/api/orders', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const ordersData = await ordersResponse.json();
+                
+                let ordersResult = '';
+                if (ordersResponse.ok) {
+                    ordersResult = `✅ Orders API: SUCCESS\nOrders found: ${Array.isArray(ordersData) ? ordersData.length : 'N/A'}\n`;
+                    if (Array.isArray(ordersData) && ordersData.length > 0) {
+                        ordersResult += `First order ID: ${ordersData[0].id}\n`;
+                    }
+                } else {
+                    ordersResult = `❌ Orders API: FAILED\nStatus: ${ordersResponse.status}\nError: ${ordersData.error}\n`;
+                }
+                
+                // Also test debug endpoint to check database directly
+                let debugResult = '';
+                try {
+                    const debugResponse = await fetch('/api/debug/orders', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (debugResponse.ok) {
+                        const debugData = await debugResponse.json();
+                        debugResult = `\n🔍 Debug Check: SUCCESS\nDatabase orders: ${Array.isArray(debugData) ? debugData.length : 'N/A'}\n`;
+                    } else {
+                        debugResult = `\n🔍 Debug Check: FAILED (Status: ${debugResponse.status})\n`;
+                    }
+                } catch (e) {
+                    debugResult = `\n🔍 Debug Check: Not available\n`;
+                }
+                
+                resultsDiv.innerHTML = `
+                    <div class="token-info ${authResponse.ok && ordersResponse.ok ? 'success' : 'error'}">
+                        <h3>🔍 Full Authentication Flow Test</h3>
+                        <pre>${authResult}${ordersResult}${debugResult}</pre>
+                        <div style="margin: 10px 0; padding: 10px; border: 1px solid #orange; background: #fff3cd;">
+                            <h4>💡 Analysis:</h4>
+                            <p><strong>User ID from Auth:</strong> ${authData.user?.id || 'N/A'}</p>
+                            <p><strong>Orders Found:</strong> ${Array.isArray(ordersData) ? ordersData.length : 'Error or not array'}</p>
+                            <p><strong>Token Valid:</strong> ${authResponse.ok ? 'Yes' : 'No'}</p>
+                            <p><strong>Orders API Status:</strong> ${ordersResponse.status}</p>
+                        </div>
+                        <h4>Auth Response:</h4>
+                        <pre>${JSON.stringify(authData, null, 2)}</pre>
+                        <h4>Orders Response:</h4>
+                        <pre>${JSON.stringify(ordersData, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="token-info error">
+                        <h3>❌ API Error</h3>
+                        <p>Error: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function generateNewToken() {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                resultsDiv.innerHTML = '<div class="token-info">🔄 Generating new JWT token...</div>';
+                
+                const response = await fetch('/api/auth/session-to-jwt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.token) {
+                    localStorage.setItem('auth_token', data.token);
+                    resultsDiv.innerHTML = `
+                        <div class="token-info success">
+                            <h3>✅ JWT Token Generated Successfully!</h3>
+                            <p>Token has been saved to localStorage as 'auth_token'</p>
+                            <p><strong>User:</strong> ${data.user?.email}</p>
+                            <p><strong>Role:</strong> ${data.user?.role}</p>
+                            <button onclick="checkToken()" style="margin: 5px; padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">Check Token</button>
+                            <button onclick="testOrdersAPI()" style="margin: 5px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Test Orders API</button>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="token-info error">
+                            <h3>❌ Failed to Generate Token</h3>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <p><strong>Error:</strong> ${data.error || 'Unknown error'}</p>
+                            <p>Make sure you're logged in first via the main site.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="token-info error">
+                        <h3>❌ Network Error</h3>
+                        <p>Failed to connect to session-to-jwt endpoint: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Auto-check token on page load
+        window.onload = function() {
+            checkToken();
+        };
+    </script>
+</body>
+</html>

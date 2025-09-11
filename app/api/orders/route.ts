@@ -74,11 +74,11 @@ export async function GET(request: NextRequest) {
           `SELECT 
             oi.id,
             oi.quantity,
-            oi.unit_price as price,
+            oi.price,
             oi.size,
             oi.color,
-            oi.product_name as name,
-            oi.product_brand as brand,
+            COALESCE(oi.product_name, p.name) as name,
+            p.brand,
             p.image_url
           FROM order_items oi
           LEFT JOIN products p ON oi.product_id = p.id
@@ -231,18 +231,29 @@ export async function POST(request: NextRequest) {
     // Generate order number
     const orderNumber = `GK${Date.now()}`
 
+    // Calculate order totals
+    const subtotal = Number(total) || 0
+    const taxAmount = subtotal * 0.12 // 12% VAT
+    const shippingAmount = subtotal > 2000 ? 0 : 150 // Free shipping over ₱2000
+    const discountAmount = 0
+    const totalAmount = subtotal + taxAmount + shippingAmount - discountAmount
+
     // Create the order
     const result = await executeQuery(
       `INSERT INTO orders (
-         user_id, order_number, status, total_amount, 
-         customer_email, shipping_address, payment_method, payment_screenshot
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         user_id, order_number, status, subtotal, tax_amount, 
+         shipping_amount, discount_amount, total_amount,
+         shipping_address, payment_method, payment_screenshot
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user.id,
         orderNumber,
         status || 'pending',
-        total || 0, // total_amount
-        customer_email,
+        subtotal,
+        taxAmount,
+        shippingAmount,
+        discountAmount,
+        totalAmount,
         JSON.stringify(shipping_address || {}),
         payment_method || null,
         payment_screenshot || null
@@ -253,14 +264,23 @@ export async function POST(request: NextRequest) {
 
     // Insert order items
     for (const item of items) {
+      // Get product SKU from database
+      const productResult = await executeQuery(
+        'SELECT sku FROM products WHERE id = ?',
+        [item.product_id]
+      ) as any[]
+      
+      const productSku = productResult[0]?.sku || `SKU-${item.product_id}`
+      
       await executeQuery(
         `INSERT INTO order_items (
-           order_id, product_id, product_name, quantity, size, color, unit_price, total_price
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           order_id, product_id, product_name, product_sku, quantity, size, color, unit_price, total_price
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           orderId,
           item.product_id,
           item.product_name || 'Unknown Product',
+          productSku,
           item.quantity,
           item.size || null,
           item.color || null,
@@ -293,7 +313,7 @@ export async function POST(request: NextRequest) {
     try {
       const emailData = {
         orderNumber: order.order_number,
-        customerEmail: order.customer_email,
+        customerEmail: customer_email,
         customerName: shipping_address?.fullName || 'Valued Customer',
         items: items.map(item => ({
           name: item.product_name,
@@ -323,7 +343,7 @@ export async function POST(request: NextRequest) {
 
       const emailSent = await sendOrderReceipt(emailData)
       if (emailSent) {
-        console.log('✅ API: Order receipt email sent successfully to:', order.customer_email)
+        console.log('✅ API: Order receipt email sent successfully to:', customer_email)
       } else {
         console.log('⚠️ API: Failed to send order receipt email, but order was created successfully')
       }
@@ -336,8 +356,8 @@ export async function POST(request: NextRequest) {
     try {
       const staffNotificationData = {
         orderNumber: orderNumber,
-        customerName: order.customer_email || 'Guest Customer',
-        customerEmail: order.customer_email || 'No email provided',
+        customerName: customer_email || 'Guest Customer',
+        customerEmail: customer_email || 'No email provided',
         total: total,
         itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
         orderDate: new Date().toLocaleDateString('en-US', {

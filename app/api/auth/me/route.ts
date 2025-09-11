@@ -6,25 +6,45 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret'
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔍 AUTH ME: Request received');
+    console.log('🔍 AUTH ME: JWT_SECRET preview:', JWT_SECRET.substring(0, 20) + '...');
+    
     // Get token from cookie or Authorization header
     let token = request.cookies.get('auth-token')?.value
+    console.log('🔍 AUTH ME: Cookie token:', token ? 'found' : 'not found');
     
     // If no cookie token, try Authorization header
     if (!token) {
       const authHeader = request.headers.get('authorization')
+      console.log('🔍 AUTH ME: Auth header:', authHeader ? 'found' : 'not found');
       if (authHeader && authHeader.startsWith('Bearer ')) {
         token = authHeader.substring(7)
+        console.log('🔍 AUTH ME: Bearer token extracted, length:', token.length);
       }
     }
 
     if (!token) {
+      console.log('❌ AUTH ME: No token provided');
       return NextResponse.json(
         { error: 'No token provided' },
         { status: 401 }
       )
     }
 
+    console.log('🔍 AUTH ME: Token preview:', token.substring(0, 50) + '...');
+    
     // Verify token
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string, email: string }
+      console.log('✅ AUTH ME: Token verified successfully for user:', decoded.userId);
+    } catch (jwtError) {
+      console.error('❌ AUTH ME: JWT verification failed:', (jwtError as Error).message);
+      return NextResponse.json(
+        { error: 'Invalid token' },
+        { status: 401 }
+      )
+    }
+    
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string, email: string }
 
     // Get user from database
