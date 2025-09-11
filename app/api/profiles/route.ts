@@ -123,12 +123,25 @@ export async function GET(request: NextRequest) {
         }
       }
       
+      // Format birthdate properly for frontend
+      let formattedBirthdate = ''
+      if (dbProfile.birthdate) {
+        try {
+          const date = new Date(dbProfile.birthdate)
+          if (!isNaN(date.getTime())) {
+            formattedBirthdate = date.toISOString().split('T')[0] // YYYY-MM-DD format
+          }
+        } catch (e) {
+          console.warn('Failed to format birthdate:', dbProfile.birthdate)
+        }
+      }
+      
       profile = {
         id: dbProfile.id,
         first_name: dbProfile.first_name || '',
         last_name: dbProfile.last_name || '',
         phone: dbProfile.phone || '',
-        birthdate: dbProfile.birthdate || '',
+        birthdate: formattedBirthdate,
         gender: dbProfile.gender || '',
         bio: dbProfile.bio || '',
         avatar_url: dbProfile.avatar_url || '',
@@ -258,11 +271,24 @@ export async function PUT(request: NextRequest) {
         SET first_name = ?, last_name = ?, phone = ?, birthdate = ?, gender = ?, bio = ?, avatar_url = ?, preferences = ?, updated_at = NOW()
         WHERE id = ?`
       
+      // Format birthdate for database storage
+      let formattedBirthdate = null
+      if (body.birthdate && body.birthdate.trim() !== '') {
+        try {
+          const date = new Date(body.birthdate)
+          if (!isNaN(date.getTime())) {
+            formattedBirthdate = body.birthdate // Keep as YYYY-MM-DD string for MySQL DATE
+          }
+        } catch (e) {
+          console.warn('Invalid birthdate format:', body.birthdate)
+        }
+      }
+      
       const updateParams = [
         body.first_name || '',
         body.last_name || '',
         body.phone || '',
-        body.birthdate || null,
+        formattedBirthdate,
         body.gender || '',
         body.bio || '',
         body.avatar_url || '',
@@ -289,7 +315,7 @@ export async function PUT(request: NextRequest) {
         body.first_name || '',
         body.last_name || '',
         body.phone || '',
-        body.birthdate || null,
+        body.birthdate && body.birthdate.trim() !== '' ? body.birthdate : null,
         body.gender || '',
         body.bio || '',
         body.avatar_url || '',
