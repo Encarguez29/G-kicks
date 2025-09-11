@@ -542,7 +542,7 @@ export default function AdminOrdersPage() {
                                           <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
                                         </div>
                                       </div>
-                                      <p className="font-medium text-foreground">{formatCurrency(item.price * item.quantity)}</p>
+<p className="font-medium text-foreground">{formatCurrency((item.price || 0) * item.quantity)}</p>
                                     </div>
                                   ))}
                                 </div>
