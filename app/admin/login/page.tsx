@@ -52,7 +52,7 @@ export default function AdminLogin() {
       setPassword("admingkicks2.0")
     } else if (role === "staff") {
       setEmail("gkicksstaff@gmail.com")
-      setPassword("staffgkicks2.0")
+      setPassword("gkicksstaff_123")
     } else {
       setEmail("cashier@gkicks.com")
       setPassword("cashier123")
@@ -168,7 +168,7 @@ export default function AdminLogin() {
                       <strong>Email:</strong> gkicksstaff@gmail.com
                     </p>
                     <p className="text-foreground">
-                      <strong>Password:</strong> staffgkicks2.0
+                      <strong>Password:</strong> gkicksstaff_123
                     </p>
                   </div>
                   <div className="mt-3 pt-3 border-t border-primary/30">

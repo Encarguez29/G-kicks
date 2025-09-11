@@ -164,11 +164,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (response.ok) {
         const userData = await response.json();
-        // Map is_admin to role field for consistency
+        // Use the role field from the API response (which now includes staff detection)
         const user = {
           ...userData.user,
-          role: userData.user.is_admin ? 'admin' : 'customer'
+          role: userData.user.role || (userData.user.is_admin ? 'admin' : 'customer')
         };
+        console.log('🔍 Auth Context: User role detected:', user.role, 'for email:', user.email);
         dispatch({ type: "SET_USER", payload: user });
         dispatch({ type: "SET_TOKEN_READY", payload: true });
         

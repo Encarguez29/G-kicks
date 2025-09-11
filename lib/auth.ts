@@ -88,14 +88,26 @@ export const authOptions: NextAuthOptions = {
 // Function to store user in database
 async function storeUserInDatabase(user: User) {
   try {
-    // Check if user already exists
+    // First check if user exists in admin_users table (staff/admin users)
+    const existingAdminUsers = await executeQuery(
+      'SELECT id, role FROM admin_users WHERE email = ?',
+      [user.email]
+    ) as any[]
+    
+    if (existingAdminUsers.length > 0) {
+      // User exists in admin_users table - do NOT create in users table
+      console.log('✅ Auth: Admin/Staff user found in admin_users table:', user.email, 'role:', existingAdminUsers[0].role)
+      return
+    }
+    
+    // Check if user already exists in users table
     const existingUsers = await executeQuery(
       'SELECT id FROM users WHERE email = ?',
       [user.email]
     ) as any[]
     
     if (existingUsers.length === 0) {
-      // Insert new user
+      // Insert new user (only for regular customers, not staff/admin)
       await executeQuery(
         'INSERT INTO users (email, first_name, last_name, avatar_url, is_admin) VALUES (?, ?, ?, ?, ?)',
         [
@@ -106,7 +118,7 @@ async function storeUserInDatabase(user: User) {
           user.role === 'admin' ? 1 : 0
         ]
       )
-      console.log('✅ Auth: New user stored in database:', user.email)
+      console.log('✅ Auth: New customer user stored in database:', user.email)
     } else {
       // Update existing user (including admin status)
       await executeQuery(

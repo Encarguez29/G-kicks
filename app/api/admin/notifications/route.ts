@@ -49,22 +49,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get admin user ID from database
+    // First check admin_users table for staff/admin roles
+    let adminUserId = null;
     const adminUserResult = await executeQuery(
-      'SELECT id FROM users WHERE email = ? AND is_admin = 1',
+      'SELECT id FROM admin_users WHERE email = ? AND is_active = 1',
       [decoded.email]
     ) as RowDataPacket[];
     
-    if (adminUserResult.length === 0) {
-      console.log('❌ Notifications API: User is not an admin:', decoded.email);
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized - Not an admin' },
-        { status: 401 }
-      );
+    if (adminUserResult.length > 0) {
+      adminUserId = adminUserResult[0].id;
+      console.log('✅ Notifications API: Admin access granted for:', decoded.email);
+    } else {
+      // Fallback: Check users table for legacy admin users
+      const legacyAdminResult = await executeQuery(
+        'SELECT id FROM users WHERE email = ? AND is_admin = 1',
+        [decoded.email]
+      ) as RowDataPacket[];
+      
+      if (legacyAdminResult.length === 0) {
+        console.log('❌ Notifications API: User is not an admin:', decoded.email);
+        return NextResponse.json(
+          { success: false, error: 'Unauthorized - Not an admin' },
+          { status: 401 }
+        );
+      }
+      
+      adminUserId = legacyAdminResult[0].id;
+      console.log('✅ Notifications API: Admin access granted for:', decoded.email);
     }
-    
-    console.log('✅ Notifications API: Admin access granted for:', decoded.email);
-    const adminUserId = adminUserResult[0].id;
     
     // Get count of new/pending orders that haven't been viewed by this admin
     const newOrdersResult = await executeQuery(
