@@ -130,38 +130,88 @@ export async function GET(request: NextRequest) {
       ORDER BY date ASC
     `)
     
-    // Category performance
+    // Category performance (combining orders and POS transactions)
     const categoryStats = await executeQuery(`
       SELECT 
-        p.category,
-        COUNT(DISTINCT oi.order_id) as orders,
-        SUM(oi.quantity) as items_sold,
-        SUM(oi.price * oi.quantity) as revenue
-      FROM order_items oi
-      JOIN products p ON oi.product_id = p.id
-      JOIN orders o ON oi.order_id = o.id
-      WHERE o.status IN ('completed', 'delivered', 'processing', 'pending')
-        AND o.created_at >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
-      GROUP BY p.category
+        category,
+        SUM(orders) as orders,
+        SUM(items_sold) as items_sold,
+        SUM(revenue) as revenue
+      FROM (
+        SELECT 
+          p.category,
+          COUNT(DISTINCT oi.order_id) as orders,
+          SUM(oi.quantity) as items_sold,
+          SUM(oi.price * oi.quantity) as revenue
+        FROM order_items oi
+        JOIN products p ON oi.product_id = p.id
+        JOIN orders o ON oi.order_id = o.id
+        WHERE o.status IN ('completed', 'delivered', 'processing', 'pending')
+          AND o.created_at >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
+        GROUP BY p.category
+        
+        UNION ALL
+        
+        SELECT 
+          p.category,
+          COUNT(DISTINCT pti.transaction_id) as orders,
+          SUM(pti.quantity) as items_sold,
+          SUM(pti.total_price) as revenue
+        FROM pos_transaction_items pti
+        JOIN products p ON pti.product_id = p.id
+        JOIN pos_transactions pt ON pti.transaction_id = pt.id
+        WHERE pt.status = 'completed'
+          AND pt.created_at >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
+        GROUP BY p.category
+      ) combined_category_data
+      GROUP BY category
       ORDER BY revenue DESC
     `)
     
-    // Top selling products
+    // Top selling products (combining orders and POS transactions)
     const topProducts = await executeQuery(`
       SELECT 
-        p.id,
-        p.name,
-        p.brand,
-        p.category,
-        SUM(oi.quantity) as total_sold,
-        SUM(oi.price * oi.quantity) as revenue,
-        COUNT(DISTINCT oi.order_id) as order_count
-      FROM order_items oi
-      JOIN products p ON oi.product_id = p.id
-      JOIN orders o ON oi.order_id = o.id
-      WHERE o.status IN ('completed', 'delivered', 'processing', 'pending')
-        AND o.created_at >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
-      GROUP BY p.id, p.name, p.brand, p.category
+        id,
+        name,
+        brand,
+        category,
+        SUM(total_sold) as total_sold,
+        SUM(revenue) as revenue,
+        SUM(order_count) as order_count
+      FROM (
+        SELECT 
+          p.id,
+          p.name,
+          p.brand,
+          p.category,
+          SUM(oi.quantity) as total_sold,
+          SUM(oi.price * oi.quantity) as revenue,
+          COUNT(DISTINCT oi.order_id) as order_count
+        FROM order_items oi
+        JOIN products p ON oi.product_id = p.id
+        JOIN orders o ON oi.order_id = o.id
+        WHERE o.status IN ('completed', 'delivered', 'processing', 'pending')
+          AND o.created_at >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
+        GROUP BY p.id, p.name, p.brand, p.category
+        
+        UNION ALL
+        
+        SELECT 
+          p.id,
+          p.name,
+          p.brand,
+          p.category,
+          SUM(pti.quantity) as total_sold,
+          SUM(pti.total_price) as revenue,
+          COUNT(DISTINCT pti.transaction_id) as order_count
+        FROM pos_transaction_items pti
+        JOIN products p ON pti.product_id = p.id
+        JOIN pos_transactions pt ON pti.transaction_id = pt.id
+        WHERE pt.status = 'completed'
+          AND pt.created_at >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
+        GROUP BY p.id, p.name, p.brand, p.category
+      ) combined_product_data
+      GROUP BY id, name, brand, category
       ORDER BY total_sold DESC
       LIMIT 10
     `)
