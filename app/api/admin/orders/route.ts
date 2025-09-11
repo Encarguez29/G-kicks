@@ -78,6 +78,8 @@ export async function GET(request: NextRequest) {
         o.total_amount as total,
         o.status,
         o.payment_status,
+        o.payment_method,
+        o.payment_screenshot,
         o.shipping_address,
         o.created_at,
         o.updated_at
@@ -120,6 +122,8 @@ export async function GET(request: NextRequest) {
           // Use customer information from orders table
           customerName: order.customer_email || 'Unknown Customer',
           customerEmail: order.customer_email || 'No email provided',
+          // Map payment fields to match frontend interface
+          paymentMethod: order.payment_method,
           // Add items
           items: processedItems
         }
