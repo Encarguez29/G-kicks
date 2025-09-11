@@ -60,7 +60,8 @@ export async function GET(request: NextRequest) {
         p.is_active,
         p.stock_quantity,
         p.colors,
-        p.sizes
+        p.sizes,
+        p.variants
       FROM products p
       WHERE p.is_active = 1 AND p.stock_quantity > 0
       ORDER BY p.name ASC

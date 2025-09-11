@@ -311,21 +311,31 @@ export default function POSPage() {
   }
 
   const getAvailableColors = (product: ProductInventory): string[] => {
-  if (!product?.variants) {
-    console.log('No variants in product:', product);
-    return [];
+    if (!product?.variants) {
+      console.log('No variants in product:', product);
+      return [];
+    }
+
+    return Object.keys(product.variants).filter((color) => {
+      const variant = product.variants?.[color]
+      if (!variant) return false
+      // Check if any size has stock > 0
+      return Object.values(variant).some((stock) => typeof stock === "number" && stock > 0)
+    })
   }
-  return Object.keys(product.variants);
-}
 
   const getAvailableSizes = (product: ProductInventory, color: string): string[] => {
-  if (!product?.variants?.[color]) {
-    console.log('No variants for color:', color, 'in product:', product);
-    return [];
+    if (!product?.variants?.[color]) {
+      console.log('No variants for color:', color, 'in product:', product);
+      return [];
+    }
+    console.log('Sizes object for color', color, ':', product.variants[color]);
+    
+    return Object.entries(product.variants[color])
+      .filter(([, stock]) => typeof stock === "number" && stock > 0)
+      .map(([size]) => size)
+      .sort((a, b) => Number(a) - Number(b))
   }
-  console.log('Sizes object for color', color, ':', product.variants[color]);
-  return Object.keys(product.variants[color]).sort((a, b) => Number(a) - Number(b));
-}
 
   const getCurrentStock = (product: ProductInventory, color: string, size: string): number => {
   return product?.variants?.[color]?.[size] ?? 0;
