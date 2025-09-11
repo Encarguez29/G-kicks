@@ -244,7 +244,7 @@ export default function OrdersPage() {
                             </p>
                           </div>
                           <div className="text-right">
-                            <p className="font-semibold">₱{Number(item.price).toFixed(2)}</p>
+                            <p className="font-semibold">₱{Number(item.price || 0).toFixed(2)}</p>
                           </div>
                         </div>
                         {index < order.items.length - 1 && <Separator className="mt-4" />}
@@ -371,7 +371,7 @@ export default function OrdersPage() {
                       </div>
                       <div className="text-right">
                         <p className="font-medium">₱{(item.price * item.quantity).toLocaleString()}</p>
-                        <p className="text-sm text-muted-foreground">₱{item.price.toLocaleString()} each</p>
+                        <p className="text-sm text-muted-foreground">₱{(item.price || 0).toLocaleString()} each</p>
                       </div>
                     </div>
                   ))}

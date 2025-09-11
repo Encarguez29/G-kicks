@@ -241,12 +241,13 @@ export async function POST(request: NextRequest) {
     // Create the order
     const result = await executeQuery(
       `INSERT INTO orders (
-         user_id, order_number, status, subtotal, tax_amount, 
+         user_id, customer_email, order_number, status, subtotal, tax_amount, 
          shipping_amount, discount_amount, total_amount,
          shipping_address, payment_method, payment_screenshot
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user.id,
+        customer_email,
         orderNumber,
         status || 'pending',
         subtotal,
@@ -274,8 +275,8 @@ export async function POST(request: NextRequest) {
       
       await executeQuery(
         `INSERT INTO order_items (
-           order_id, product_id, product_name, product_sku, quantity, size, color, unit_price, total_price
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           order_id, product_id, product_name, product_sku, quantity, size, color, unit_price, total_price, price, total
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           orderId,
           item.product_id,
@@ -284,6 +285,8 @@ export async function POST(request: NextRequest) {
           item.quantity,
           item.size || null,
           item.color || null,
+          item.price,
+          item.price * item.quantity,
           item.price,
           item.price * item.quantity
         ]
