@@ -102,6 +102,8 @@ export async function GET(request: NextRequest) {
           discount_amount: Number(order.discount_amount),
           total: Number(order.total),
           shipping_address: order.shipping_address ? JSON.parse(order.shipping_address) : null,
+          // Map payment fields to match frontend interface
+          paymentMethod: order.payment_method,
           items: processedItems
         }
       })

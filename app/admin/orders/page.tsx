@@ -548,6 +548,32 @@ export default function AdminOrdersPage() {
                                 </div>
                               </div>
 
+                              {/* Payment Information */}
+                              <div>
+                                <h4 className="font-medium mb-2 text-foreground">Payment Information</h4>
+                                <div className="bg-muted p-3 rounded-lg">
+                                  <div className="flex justify-between items-center mb-3">
+                                    <span className="text-foreground">Payment Method:</span>
+                                    <span className="text-foreground font-medium">{selectedOrder.paymentMethod}</span>
+                                  </div>
+                                  {selectedOrder.payment_screenshot && (selectedOrder.paymentMethod === "GCash" || selectedOrder.paymentMethod === "Maya") && (
+                                    <div>
+                                      <span className="text-foreground font-medium">Payment Screenshot:</span>
+                                      <div className="mt-2 border rounded-lg overflow-hidden max-w-sm">
+                                        <img 
+                                          src={selectedOrder.payment_screenshot} 
+                                          alt="Payment Screenshot" 
+                                          className="w-full h-auto max-h-64 object-contain hover:opacity-80 transition-opacity"
+                                          onClick={() => window.open(selectedOrder.payment_screenshot, '_blank')}
+                                          style={{ cursor: 'pointer' }}
+                                        />
+                                      </div>
+                                      <p className="text-xs text-muted-foreground mt-1">Click to view full size</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
                               {/* Order Summary */}
                               <div>
                                 <h4 className="font-medium mb-2 text-foreground">Order Summary</h4>
@@ -556,25 +582,6 @@ export default function AdminOrdersPage() {
                                     <span className="text-foreground">Total:</span>
                                     <span className="font-bold text-lg text-foreground">{formatCurrency(selectedOrder.total)}</span>
                                   </div>
-                                  <div className="flex justify-between items-center mt-2">
-                                    <span className="text-foreground">Payment Method:</span>
-                                    <span className="text-foreground">{selectedOrder.paymentMethod}</span>
-                                  </div>
-                                  {selectedOrder.payment_screenshot && (selectedOrder.paymentMethod === "GCash" || selectedOrder.paymentMethod === "Maya") && (
-                                    <div className="mt-3">
-                                      <span className="text-foreground font-medium">Payment Screenshot:</span>
-                                      <div className="mt-2 border rounded-lg overflow-hidden max-w-sm">
-                                        <img 
-                                          src={selectedOrder.payment_screenshot} 
-                                          alt="Payment Screenshot" 
-                                          className="w-full h-auto max-h-64 object-contain"
-                                          onClick={() => window.open(selectedOrder.payment_screenshot, '_blank')}
-                                          style={{ cursor: 'pointer' }}
-                                        />
-                                      </div>
-                                      <p className="text-xs text-muted-foreground mt-1">Click to view full size</p>
-                                    </div>
-                                  )}
                                   {selectedOrder.trackingNumber && (
                                     <div className="flex justify-between items-center mt-2">
                                       <span className="text-foreground">Tracking Number:</span>

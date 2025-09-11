@@ -34,6 +34,8 @@ interface Order {
   items: OrderItem[]
   shippingAddress: any // JSONB type from your DB
   trackingNumber?: string
+  paymentMethod?: string
+  payment_screenshot?: string
 }
 
 const getStatusIcon = (status: string) => {
@@ -375,6 +377,32 @@ export default function OrdersPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Payment Information */}
+              <div>
+                <h4 className="font-medium mb-2">Payment Information</h4>
+                <div className="bg-muted p-3 rounded-lg">
+                  <div className="flex justify-between items-center mb-3">
+                    <span>Payment Method:</span>
+                    <span className="font-medium">{selectedOrder.paymentMethod || 'Not specified'}</span>
+                  </div>
+                  {selectedOrder.payment_screenshot && (selectedOrder.paymentMethod === "GCash" || selectedOrder.paymentMethod === "Maya") && (
+                    <div>
+                      <span className="font-medium">Payment Screenshot:</span>
+                      <div className="mt-2 border rounded-lg overflow-hidden max-w-sm">
+                        <img 
+                          src={selectedOrder.payment_screenshot} 
+                          alt="Payment Screenshot" 
+                          className="w-full h-auto max-h-64 object-contain hover:opacity-80 transition-opacity"
+                          onClick={() => window.open(selectedOrder.payment_screenshot, '_blank')}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Click to view full size</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
