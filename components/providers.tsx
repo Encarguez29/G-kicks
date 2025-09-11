@@ -12,30 +12,33 @@ import { OrdersProvider } from "@/contexts/orders-context"
 import { AdminProvider } from "@/contexts/admin-context"
 import { AuthProvider } from "@/contexts/auth-context" // Adjust import path
 import ClientOnly from "@/components/client-only"
+import ErrorBoundary from "@/components/error-boundary"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <SessionProvider 
-        refetchInterval={0}
-        refetchOnWindowFocus={false}
-        refetchWhenOffline={false}
-      >
-        <ClientOnly fallback={<div>Loading...</div>}>
-          <AuthProvider>
-            <AdminProvider>
-              <CartProvider>
-                <WishlistProvider>
-                  <OrdersProvider>
-                    {children}
-                    <Toaster />
-                  </OrdersProvider>
-                </WishlistProvider>
-              </CartProvider>
-            </AdminProvider>
-          </AuthProvider>
-        </ClientOnly>
-      </SessionProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <SessionProvider 
+          refetchInterval={0}
+          refetchOnWindowFocus={false}
+          refetchWhenOffline={false}
+        >
+          <ClientOnly fallback={<div>Loading...</div>}>
+            <AuthProvider>
+              <AdminProvider>
+                <CartProvider>
+                  <WishlistProvider>
+                    <OrdersProvider>
+                      {children}
+                      <Toaster />
+                    </OrdersProvider>
+                  </WishlistProvider>
+                </CartProvider>
+              </AdminProvider>
+            </AuthProvider>
+          </ClientOnly>
+        </SessionProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   )
 }

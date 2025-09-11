@@ -45,39 +45,65 @@ export async function GET(request: NextRequest) {
       )
     }
     
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string, email: string }
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string, email: string, role?: string }
 
-    // Get user from database
-    const userArray = await executeQuery(
-      'SELECT id, email, first_name, last_name, avatar_url, is_admin, created_at FROM users WHERE id = ?',
-      [decoded.userId]
+    // First check if this is an admin/staff user by checking admin_users table
+    const adminUserArray = await executeQuery(
+      'SELECT id, email, username, first_name, last_name, role, is_active, created_at FROM admin_users WHERE email = ? AND is_active = 1',
+      [decoded.email]
     ) as any[]
-    if (userArray.length === 0) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
+    
+    let user = null
+    let role = 'customer'
+    
+    if (adminUserArray.length > 0) {
+      // This is an admin/staff user
+      user = adminUserArray[0]
+      role = user.role // 'admin' or 'staff'
+      console.log('✅ AUTH ME: Found admin_users role:', role, 'for email:', user.email)
+    } else {
+      // Check regular users table
+      const userArray = await executeQuery(
+        'SELECT id, email, first_name, last_name, avatar_url, is_admin, created_at FROM users WHERE email = ?',
+        [decoded.email]
+      ) as any[]
+      
+      if (userArray.length === 0) {
+        return NextResponse.json(
+          { error: 'User not found' },
+          { status: 404 }
+        )
+      }
+      
+      user = userArray[0]
+      role = user.is_admin ? 'admin' : 'customer'
+      
+      if (user.email === 'gkcksdmn@gmail.com') {
+        // Fallback for legacy admin
+        role = 'admin'
+        console.log('✅ AUTH ME: Legacy admin access for:', user.email)
+      }
     }
 
-    const user = userArray[0]
-
-    // Also get profile data which might have more up-to-date information
-    const profileArray = await executeQuery(
-      'SELECT first_name, last_name, avatar_url FROM profiles WHERE id = ?',
-      [decoded.userId]
-    ) as any[]
-
-    // Use profile data if available, otherwise fall back to user data
+    // Get profile data for regular users (admin_users don't have profiles)
     let firstName = user.first_name
     let lastName = user.last_name
-    let avatarUrl = user.avatar_url
+    let avatarUrl = user.avatar_url || null
+    
+    if (role === 'customer') {
+      // Only check profiles table for regular customers
+      const profileArray = await executeQuery(
+        'SELECT first_name, last_name, avatar_url FROM profiles WHERE id = ?',
+        [user.id]
+      ) as any[]
 
-    if (profileArray.length > 0) {
-      const profile = profileArray[0]
-      // Use profile data if it exists and is not empty
-      if (profile.first_name) firstName = profile.first_name
-      if (profile.last_name) lastName = profile.last_name
-      if (profile.avatar_url) avatarUrl = profile.avatar_url
+      if (profileArray.length > 0) {
+        const profile = profileArray[0]
+        // Use profile data if it exists and is not empty
+        if (profile.first_name) firstName = profile.first_name
+        if (profile.last_name) lastName = profile.last_name
+        if (profile.avatar_url) avatarUrl = profile.avatar_url
+      }
     }
 
     console.log('🔐 Auth Me: Returning user data:', {
@@ -85,7 +111,8 @@ export async function GET(request: NextRequest) {
       email: user.email,
       first_name: firstName,
       last_name: lastName,
-      avatar_url: avatarUrl
+      avatar_url: avatarUrl,
+      role: role
     });
 
     return NextResponse.json({
@@ -95,7 +122,8 @@ export async function GET(request: NextRequest) {
         first_name: firstName,
         last_name: lastName,
         avatar_url: avatarUrl,
-        is_admin: user.is_admin,
+        is_admin: role === 'admin' ? 1 : (user.is_admin || 0),
+        role: role,
         created_at: user.created_at
       }
     })

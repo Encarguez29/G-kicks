@@ -99,10 +99,23 @@ export function Header({ onSearch }: HeaderProps) {
 
   const hasStaffAccess = () => {
     if (!user) return false
+    // Debug logging to help troubleshoot staff access
+    console.log('🔍 Header: Checking staff access for user:', {
+      email: user.email,
+      role: user.role,
+      hasStaffRole: user.role === "staff",
+      hasStaffEmail: user.email === "gkicksstaff@gmail.com"
+    })
     return user.role === "staff" || user.email === "gkicksstaff@gmail.com"
   }
 
   const getUserDisplayName = () => {
+    // Debug logging to help troubleshoot user display name
+    console.log('🔍 Header: Getting display name for user:', {
+      email: user?.email,
+      role: user?.role,
+      firstName: user?.firstName
+    })
     if (user?.role === "admin" || user?.email === "gkcksdmn@gmail.com") return "ADMIN GKICKS"
     if (user?.role === "staff" || user?.email === "gkicksstaff@gmail.com") return "STAFF GKICKS"
     return user?.firstName || user?.email?.split("@")[0] || "User"
