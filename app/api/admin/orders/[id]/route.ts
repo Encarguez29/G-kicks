@@ -130,6 +130,8 @@ export async function DELETE(
     const authHeader = request.headers.get('authorization')
     const cookieHeader = request.headers.get('cookie')
     let token = null
+    let userEmail = null
+    let isAuthenticated = false
     
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.substring(7)
@@ -142,28 +144,49 @@ export async function DELETE(
       token = cookies['auth-token']
     }
     
-    // Also check localStorage token (for client-side requests)
-    if (!token) {
-      // For client-side requests, we'll rely on the session check as fallback
-      const session = await getServerSession(authOptions)
-      if (!session?.user?.email || session.user.email !== 'gkcksdmn@gmail.com') {
-        return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 })
-      }
-    } else {
-      // Verify JWT token
+    // Verify JWT token if present
+    if (token) {
       try {
         const jwt = require('jsonwebtoken')
         const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret'
         const decoded = jwt.verify(token, JWT_SECRET) as any
         
-        if (!decoded.userId || decoded.role !== 'admin') {
-          return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 })
+        userEmail = decoded.email
+        isAuthenticated = true
+        
+        // Check if user has admin or staff permissions
+        if (decoded.role !== 'admin' && decoded.role !== 'staff') {
+          // Also check for specific authorized emails
+          const authorizedEmails = ['gkcksdmn@gmail.com', 'gkicksstaff@gmail.com']
+          if (!authorizedEmails.includes(userEmail)) {
+            return NextResponse.json({ error: 'Unauthorized - Admin or Staff access required' }, { status: 401 })
+          }
         }
       } catch (jwtError) {
         console.error('JWT verification failed:', jwtError)
         return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
       }
     }
+    
+    // Fallback to session check if no valid JWT token
+    if (!isAuthenticated) {
+      const session = await getServerSession(authOptions)
+      if (!session?.user?.email) {
+        return NextResponse.json({ error: 'Unauthorized - Authentication required' }, { status: 401 })
+      }
+      
+      userEmail = session.user.email
+      
+      // Check if user has admin or staff access
+      const authorizedEmails = ['gkcksdmn@gmail.com', 'gkicksstaff@gmail.com']
+      if (!authorizedEmails.includes(userEmail)) {
+        return NextResponse.json({ error: 'Unauthorized - Admin or Staff access required' }, { status: 401 })
+      }
+      
+      isAuthenticated = true
+    }
+    
+    console.log('🔐 Archive request authorized for user:', userEmail)
 
     const { id: orderId } = await params
 

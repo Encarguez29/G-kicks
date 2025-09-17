@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
       )
     }
     
-    // Fetch orders with available information
+    // Fetch orders with available information, excluding archived orders (cancelled and refunded)
     const orders = await executeQuery(`
       SELECT 
         o.id,
@@ -84,6 +84,7 @@ export async function GET(request: NextRequest) {
         o.created_at,
         o.updated_at
       FROM orders o
+      WHERE o.status NOT IN ('cancelled', 'refunded')
       ORDER BY o.created_at DESC
     `) as any[]
 
