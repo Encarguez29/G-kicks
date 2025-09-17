@@ -27,7 +27,7 @@ const sendVerificationEmail = async (email, firstName, verificationToken) => {
   try {
     const transporter = createTransporter();
     
-    const verificationUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`;
+    const verificationUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3001'}/verify-email?token=${verificationToken}`;
     
     const mailOptions = {
       from: process.env.SMTP_FROM || `"GKICKS Shop" <${process.env.SMTP_USER || process.env.GMAIL_USER}>`,

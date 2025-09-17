@@ -5,7 +5,7 @@ async function testLoginDebug() {
   try {
     console.log('=== Testing Login with Debug Info ===');
     
-    const response = await axios.post('http://localhost:3000/api/auth/login', {
+    const response = await axios.post('http://localhost:3001/api/auth/login', {
       email: 'gkicksstaff@gmail.com',
       password: 'gkicksstaff_123'
     });

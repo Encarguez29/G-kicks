@@ -72,7 +72,7 @@ async function resendVerificationEmail() {
     console.log('✅ SMTP connection verified');
     
     // Create verification URL
-    const verificationUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`;
+    const verificationUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3001'}/verify-email?token=${verificationToken}`;
     
     // Email content
     const mailOptions = {
