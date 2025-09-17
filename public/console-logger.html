@@ -80,7 +80,7 @@
         
         function openProductPage() {
             addLog('Opening product page in new window...', 'info');
-            const newWindow = window.open('http://localhost:3000/product/18', '_blank');
+            const newWindow = window.open('http://localhost:3001/product/18', '_blank');
             
             // Try to capture logs from the new window (limited by CORS)
             if (newWindow) {
@@ -168,7 +168,7 @@
         
         // Listen for messages from other windows
         window.addEventListener('message', function(event) {
-            if (event.origin === 'http://localhost:3000') {
+            if (event.origin === 'http://localhost:3001') {
                 addLog('📨 Message from product page: ' + JSON.stringify(event.data), 'info');
             }
         });

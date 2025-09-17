@@ -95,7 +95,7 @@ GKICKS-SHOP-2.0/
    
    # Next.js
    NEXTAUTH_SECRET=your_nextauth_secret
-   NEXTAUTH_URL=http://localhost:3000
+   NEXTAUTH_URL=http://localhost:3001
    ```
 
 5. **Run the development server**

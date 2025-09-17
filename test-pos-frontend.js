@@ -10,7 +10,7 @@ async function testPOSFrontend() {
     const page = await browser.newPage();
     
     // Navigate to POS page
-    await page.goto('http://localhost:3000/admin/pos');
+    await page.goto('http://localhost:3001/admin/pos');
     
     // Wait for page to load
     await page.waitForTimeout(3000);
@@ -59,7 +59,7 @@ try {
 } catch (e) {
   console.log('⚠️  Puppeteer not available, skipping frontend test');
   console.log('Please manually test the POS system:');
-  console.log('1. Open http://localhost:3000/admin/pos');
+  console.log('1. Open http://localhost:3001/admin/pos');
   console.log('2. Click on a product (e.g., "sambahin moko")');
   console.log('3. Check if only "Black" color is available (not yellow)');
   console.log('4. Select Black and check if only sizes 6-12 are available (not 2,4,5)');

@@ -6,7 +6,7 @@ async function testProfileAPI() {
     console.log('🧪 Testing profile API update...');
     
     // First get a token (simulate login)
-    const loginResponse = await fetch('http://localhost:3000/api/auth/login', {
+    const loginResponse = await fetch('http://localhost:3001/api/auth/login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -46,7 +46,7 @@ async function testProfileAPI() {
     
     console.log('📝 Sending profile update:', updateData);
     
-    const updateResponse = await fetch('http://localhost:3000/api/profiles', {
+    const updateResponse = await fetch('http://localhost:3001/api/profiles', {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -66,7 +66,7 @@ async function testProfileAPI() {
     }
     
     // Verify the update by fetching profile
-    const fetchResponse = await fetch('http://localhost:3000/api/profiles', {
+    const fetchResponse = await fetch('http://localhost:3001/api/profiles', {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`

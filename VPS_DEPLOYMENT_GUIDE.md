@@ -139,7 +139,7 @@ server {
     server_name yourdomain.com www.yourdomain.com;
 
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:3001;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -271,9 +271,9 @@ sudo crontab -e
 
 ### Common Issues
 
-1. **Port 3000 already in use**
+1. **Port 3001 already in use**
    ```bash
-   sudo lsof -i :3000
+   sudo lsof -i :3001
    sudo kill -9 <PID>
    ```
 

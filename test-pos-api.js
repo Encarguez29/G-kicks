@@ -3,7 +3,7 @@ async function testPOSAPI() {
   try {
     console.log('=== Testing POS API Data ===');
     
-    const response = await fetch('http://localhost:3000/api/products');
+    const response = await fetch('http://localhost:3001/api/products');
     if (!response.ok) {
       console.error('❌ API request failed:', response.status);
       return;

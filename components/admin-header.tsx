@@ -65,8 +65,8 @@ export function AdminHeader() {
   const navigationItems = allNavigationItems.filter(item => {
     // Admin has access to all items
     if (isFullAdmin) return true
-    // Staff only has access to dashboard, orders and POS
-    if (isStaffUser) return item.permission === 'dashboard' || item.permission === 'orders' || item.permission === 'pos'
+    // Staff only has access to orders and POS (dashboard access removed)
+    if (isStaffUser) return item.permission === 'orders' || item.permission === 'pos'
     return false
   })
 

@@ -39,11 +39,26 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Check if user is admin
+    // Check if user is admin or staff with dashboard permissions
     const adminUsers = await executeQuery(
       'SELECT id, email, is_admin FROM users WHERE id = ? AND is_admin = 1',
       [decoded.userId]
     ) as any[]
+
+    // Check if user is staff in admin_users table
+    const staffUsers = await executeQuery(
+      'SELECT id, email, role, permissions FROM admin_users WHERE email = ? AND role = "staff" AND is_active = 1',
+      [decoded.email]
+    ) as any[]
+
+    // Deny access for staff users (dashboard access removed)
+    if (adminUsers.length === 0 && staffUsers.length > 0) {
+      console.log('❌ Dashboard API: Staff user access denied (dashboard removed):', decoded.email)
+      return NextResponse.json(
+        { error: 'Access denied. Dashboard access has been removed for staff users.' },
+        { status: 403 }
+      )
+    }
 
     if (adminUsers.length === 0) {
       console.log('❌ Dashboard API: User is not admin:', decoded.email)

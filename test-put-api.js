@@ -13,7 +13,7 @@ async function testPutAPI() {
     
     // Let's try to get the current profile first
     console.log('\n📋 Step 2: Getting current profile...');
-    const getResponse = await fetch('http://localhost:3000/api/profiles', {
+    const getResponse = await fetch('http://localhost:3001/api/profiles', {
       headers: {
         'Authorization': `Bearer ${testToken}`
       }
@@ -49,7 +49,7 @@ async function testPutAPI() {
     
     console.log('📝 Sending PUT data:', JSON.stringify(testData, null, 2));
     
-    const putResponse = await fetch('http://localhost:3000/api/profiles', {
+    const putResponse = await fetch('http://localhost:3001/api/profiles', {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -71,7 +71,7 @@ async function testPutAPI() {
     
     // Verify the update
     console.log('\n🔍 Step 4: Verifying update...');
-    const verifyResponse = await fetch('http://localhost:3000/api/profiles', {
+    const verifyResponse = await fetch('http://localhost:3001/api/profiles', {
       headers: {
         'Authorization': `Bearer ${testToken}`
       }
@@ -91,7 +91,7 @@ async function testPutAPI() {
     
     // Restore original data
     console.log('\n🔄 Step 5: Restoring original data...');
-    const restoreResponse = await fetch('http://localhost:3000/api/profiles', {
+    const restoreResponse = await fetch('http://localhost:3001/api/profiles', {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',

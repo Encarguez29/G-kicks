@@ -29,7 +29,7 @@ const testProfilePUT = async () => {
     // Step 2: Test the PUT endpoint structure
     console.log('\n🔍 Step 2: Testing PUT endpoint...');
     
-    const response = await fetch('http://localhost:3000/api/profiles', {
+    const response = await fetch('http://localhost:3001/api/profiles', {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
