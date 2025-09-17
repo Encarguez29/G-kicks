@@ -51,7 +51,6 @@ import { useToast } from "@/hooks/use-toast"
 import { useAdmin } from "@/contexts/admin-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
-  Trash2,
   Edit,
   Plus,
   Search,
@@ -68,7 +67,8 @@ import {
   AlertTriangle,
   Package,
   TrendingDown,
-  Grid3X3
+  Grid3X3,
+  Archive
 } from "lucide-react"
 
 interface Product {
@@ -518,11 +518,11 @@ export default function InventoryPage() {
 
 
 
-  const handleDelete = async () => {
+  const handleArchive = async () => {
     if (!productToDelete) return
 
     try {
-      const token = localStorage.getItem('auth_token') // ✅ Already correct
+      const token = localStorage.getItem('auth_token')
       console.log('🔍 Debug - Token from localStorage:', token)
       console.log('🔍 Debug - Token type:', typeof token)
       console.log('🔍 Debug - Token length:', token?.length)
@@ -530,7 +530,7 @@ export default function InventoryPage() {
       if (!token || token === 'null' || token === 'undefined') {
         toast({
           title: "Authentication Error",
-          description: "Please log in again to delete products",
+          description: "Please log in again to archive products",
           variant: "destructive",
         })
         return
@@ -546,17 +546,19 @@ export default function InventoryPage() {
       if (response.ok) {
         toast({
           title: "Success",
-          description: "Product deleted successfully",
+          description: "Product archived successfully",
         })
         loadProducts()
+        // Navigate to archive page
+        window.location.href = '/admin/archive'
       } else {
-        throw new Error('Failed to delete product')
+        throw new Error('Failed to archive product')
       }
     } catch (error) {
-      console.error('Error deleting product:', error)
+      console.error('Error archiving product:', error)
       toast({
         title: "Error",
-        description: "Failed to delete product",
+        description: "Failed to archive product",
         variant: "destructive",
       })
     } finally {
@@ -1068,10 +1070,10 @@ export default function InventoryPage() {
                           setProductToDelete(product)
                           setIsDeleteDialogOpen(true)
                         }}
-                        title="Delete Product"
-                        className="bg-destructive hover:bg-destructive/90 border-destructive text-destructive-foreground"
+                        title="Archive Product"
+                        className="bg-orange-500 hover:bg-orange-600 border-orange-500 text-white"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Archive className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
@@ -2267,13 +2269,13 @@ export default function InventoryPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Archive Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent className="bg-background border-border">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive">Delete Product</AlertDialogTitle>
+            <AlertDialogTitle className="text-orange-600">Archive Product</AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground">
-              Are you sure you want to delete "{productToDelete?.name}"? This action cannot be undone.
+              Are you sure you want to archive "{productToDelete?.name}"? This will move the product to the archive where it can be restored later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2281,10 +2283,10 @@ export default function InventoryPage() {
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              onClick={handleArchive}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
             >
-              Delete
+              Archive
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

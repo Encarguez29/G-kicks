@@ -11,7 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { UserPlus, Users, Eye, EyeOff, Trash2, Edit, Shield } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { UserPlus, Users, Eye, EyeOff, Archive, Edit, Shield } from 'lucide-react';
 
 // Admin user interface for admin_users table
 interface StaffAdminUser {
@@ -66,6 +67,8 @@ export default function AdminUsersPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+  const [userToArchive, setUserToArchive] = useState<AdminUser | null>(null);
   
   const [createForm, setCreateForm] = useState<CreateUserForm>({
     email: '',
@@ -248,11 +251,9 @@ export default function AdminUsersPage() {
     }
   };
 
-  // Deactivate user
-  const handleDeactivateUser = async (userId: number) => {
-    if (!confirm('Are you sure you want to deactivate this user?')) {
-      return;
-    }
+  // Archive user
+  const handleArchiveUser = async (userId: number) => {
+    if (!userToArchive) return;
 
     try {
       setLoading(true);
@@ -263,15 +264,19 @@ export default function AdminUsersPage() {
       const data = await response.json();
       
       if (response.ok) {
-        setSuccess('User deactivated successfully');
+        setSuccess('User archived successfully');
         fetchAdminUsers(); // Refresh the list
+        // Navigate to archive page
+        window.location.href = '/admin/archive';
       } else {
-        setError(data.error || 'Failed to deactivate user');
+        setError(data.error || 'Failed to archive user');
       }
     } catch (err) {
-      setError('Network error while deactivating user');
+      setError('Network error while archiving user');
     } finally {
       setLoading(false);
+      setIsArchiveDialogOpen(false);
+      setUserToArchive(null);
     }
   };
 
@@ -497,10 +502,13 @@ export default function AdminUsersPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDeactivateUser(user.id)}
+                            onClick={() => {
+                              setUserToArchive(user);
+                              setIsArchiveDialogOpen(true);
+                            }}
                             disabled={loading}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Archive className="w-4 h-4" />
                           </Button>
                         )}
                       </div>
@@ -681,10 +689,14 @@ export default function AdminUsersPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {/* TODO: Add deactivate functionality */}}
+                            onClick={() => {
+                              setUserToArchive({...admin, is_admin: false} as AdminUser);
+                              setIsArchiveDialogOpen(true);
+                            }}
                             disabled={loading}
+                            className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:text-orange-300 dark:hover:bg-orange-950"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Archive className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
@@ -696,6 +708,29 @@ export default function AdminUsersPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Archive Confirmation Dialog */}
+      <AlertDialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
+        <AlertDialogContent className="bg-background border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-orange-600">Archive User</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              Are you sure you want to archive "{userToArchive?.first_name} {userToArchive?.last_name}" ({userToArchive?.email})? This will move the user to the archive where they can be restored later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-secondary hover:bg-secondary/80 border-border text-secondary-foreground">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleArchiveUser(userToArchive?.id || 0)}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              Archive
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

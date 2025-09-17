@@ -15,6 +15,7 @@ export async function GET() {
         bgGradient VARCHAR(255) NOT NULL,
         image VARCHAR(255) NOT NULL,
         isActive BOOLEAN DEFAULT 1,
+        is_archived BOOLEAN DEFAULT 0,
         display_order INT DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -72,10 +73,11 @@ export async function GET() {
       }
     }
     
-    // Fetch all slides for admin management
+    // Fetch all slides for public display (exclude archived slides)
     const slides: any = await executeQuery(`
       SELECT id, title, subtitle, description, ctaText, bgGradient, image, isActive, display_order as \`order\`
       FROM carousel_slides 
+      WHERE isActive = 1 AND (is_archived = 0 OR is_archived IS NULL)
       ORDER BY display_order ASC, id ASC
     `)
     

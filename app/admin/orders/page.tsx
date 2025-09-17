@@ -19,8 +19,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { type Order } from "@/lib/admin-data"
-import { Search, Eye, Package, Truck, CheckCircle, XCircle, Clock, Filter, RefreshCw, Trash2 } from "lucide-react"
+import { Search, Eye, Package, Truck, CheckCircle, XCircle, Clock, Filter, RefreshCw, Archive } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 
@@ -35,6 +36,8 @@ export default function AdminOrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null)
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false)
+  const [orderToArchive, setOrderToArchive] = useState<Order | null>(null)
   const { toast } = useToast()
 
   // Check authentication
@@ -167,15 +170,11 @@ export default function AdminOrdersPage() {
     }
   }
 
-  const handleDeleteOrder = async (orderId: string) => {
-    console.log('🗑️ Frontend: Delete button clicked for order:', orderId)
+  const handleArchiveOrder = async (orderId: string) => {
+    if (!orderToArchive) return;
     
-    if (!confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
-      console.log('🚫 Frontend: User cancelled deletion')
-      return
-    }
-
-    console.log('✅ Frontend: User confirmed deletion, proceeding...')
+    console.log('📦 Frontend: Archive button clicked for order:', orderId)
+    console.log('✅ Frontend: User confirmed archiving, proceeding...')
 
     try {
       // Get JWT token from localStorage for admin authentication
@@ -200,44 +199,49 @@ export default function AdminOrdersPage() {
       console.log('📡 Frontend: Response status:', response.status)
       
       if (response.ok) {
-        console.log('✅ Frontend: Delete successful, updating UI')
+        console.log('✅ Frontend: Archive successful, updating UI')
         setOrders((prevOrders) => prevOrders.filter((order) => order.id !== orderId))
         toast({
-          title: "Order Deleted",
-          description: "Order has been successfully deleted",
+          title: "Order Archived",
+          description: "Order has been successfully archived",
         })
+        // Navigate to archive page
+        window.location.href = '/admin/archive'
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-        console.error('❌ Frontend: Delete failed:', response.status, errorData)
+        console.error('❌ Frontend: Archive failed:', response.status, errorData)
         
         if (response.status === 401) {
           toast({
             title: "Authentication Required",
-            description: "Please log in as an admin to delete orders. Go to /admin/login",
+            description: "Please log in as an admin to archive orders. Go to /admin/login",
             variant: "destructive",
           })
         } else if (response.status === 403) {
           toast({
             title: "Access Denied",
-            description: "You don't have permission to delete orders",
+            description: "You don't have permission to archive orders",
             variant: "destructive",
           })
         } else {
           toast({
             title: "Error",
-            description: errorData.error || `Failed to delete order (${response.status})`,
+            description: errorData.error || `Failed to archive order (${response.status})`,
             variant: "destructive",
           })
         }
-        console.error('Delete order error:', response.status, errorData)
+        console.error('Archive order error:', response.status, errorData)
       }
     } catch (error) {
-      console.error('❌ Frontend: Network error deleting order:', error)
+      console.error('❌ Frontend: Network error archiving order:', error)
       toast({
         title: "Network Error",
         description: "Unable to connect to server. Please check your connection.",
         variant: "destructive",
       })
+    } finally {
+      setIsArchiveDialogOpen(false)
+      setOrderToArchive(null)
     }
   }
 
@@ -615,18 +619,19 @@ export default function AdminOrdersPage() {
                           )}
                         </DialogContent>
                         </Dialog>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={(e) => {
                             e.preventDefault()
                             e.stopPropagation()
-                            handleDeleteOrder(order.id)
+                            setOrderToArchive(order)
+                            setIsArchiveDialogOpen(true)
                           }}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950"
+                          className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:text-orange-300 dark:hover:bg-orange-950"
                         >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Remove
+                          <Archive className="h-4 w-4 mr-2" />
+                          Archive
                         </Button>
                       </div>
                     </div>
@@ -637,6 +642,29 @@ export default function AdminOrdersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Archive Confirmation Dialog */}
+      <AlertDialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
+        <AlertDialogContent className="bg-background border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-orange-600">Archive Order</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              Are you sure you want to archive order "{orderToArchive?.id}"? This will move the order to the archive where it can be restored later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-secondary hover:bg-secondary/80 border-border text-secondary-foreground">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleArchiveOrder(orderToArchive?.id || '')}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              Archive
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

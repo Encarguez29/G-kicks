@@ -167,29 +167,23 @@ export async function DELETE(
 
     const { id: orderId } = await params
 
-    console.log('🗑️ API: Deleting order:', orderId)
+    console.log('🗑️ API: Archiving order:', orderId)
 
-    // First, delete order items
-    await db.execute(
-      'DELETE FROM order_items WHERE order_id = ?',
-      [orderId]
-    )
-
-    // Then delete the order
+    // Archive the order by setting status to 'cancelled' instead of permanently deleting
     const [result] = await db.execute<ResultSetHeader>(
-      'DELETE FROM orders WHERE id = ?',
-      [orderId]
+      'UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?',
+      ['cancelled', orderId]
     )
 
     if (result.affectedRows === 0) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
     }
 
-    console.log('✅ API: Order deleted successfully:', orderId)
+    console.log('✅ API: Order archived successfully:', orderId)
 
     return NextResponse.json({
       success: true,
-      message: 'Order deleted successfully'
+      message: 'Order archived successfully'
     })
   } catch (error) {
     console.error('❌ API: Error deleting order:', error)
