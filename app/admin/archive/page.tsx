@@ -54,19 +54,36 @@ export default function ArchivePage() {
   const handleRestore = async (id: number, type: string) => {
     try {
       setRestoring(id)
+      
+      // Get JWT token from localStorage for admin authentication
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
+      console.log('🔑 Frontend: JWT token found:', !!token)
+      
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      
+      console.log('📡 Frontend: Making restore request for:', { id, type })
+      
       const response = await fetch('/api/admin/archive/restore', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ id, type }),
       })
+      
+      console.log('📡 Frontend: Response status:', response.status)
 
       if (response.ok) {
+        console.log('✅ Frontend: Restore successful')
         toast.success('Item restored successfully')
         fetchArchivedItems()
       } else {
         const error = await response.json()
+        console.error('❌ Frontend: Restore failed:', error)
         toast.error(error.message || 'Failed to restore item')
       }
     } catch (error) {
