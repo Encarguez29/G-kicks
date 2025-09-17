@@ -57,19 +57,20 @@ export function AdminHeader() {
     { href: "/admin/carousel", icon: Settings, label: "Carousel", active: pathname === "/admin/carousel", permission: "carousel" },
     { href: "/admin/analytics", icon: BarChart3, label: "Analytics", active: pathname === "/admin/analytics", permission: "analytics" },
     { href: "/admin/pos", icon: Calculator, label: "POS", active: pathname === "/admin/pos", permission: "pos" },
+    { href: "/admin/users", icon: User, label: "Users", active: pathname === "/admin/users", permission: "users" },
     { href: "/admin/backup", icon: Shield, label: "Backup", active: pathname === "/admin/backup", permission: "backup" },
   ]
   
   const navigationItems = allNavigationItems.filter(item => {
     // Admin has access to all items
     if (isFullAdmin) return true
-    // Staff only has access to orders and POS
-    if (isStaffUser) return item.permission === 'orders' || item.permission === 'pos'
+    // Staff only has access to dashboard, orders and POS
+    if (isStaffUser) return item.permission === 'dashboard' || item.permission === 'orders' || item.permission === 'pos'
     return false
   })
 
   return (
-    <header className="bg-background border-b border-border">
+    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
       <div className="w-full px-4 sm:px-6 lg:px-8 py-2">
         <div className="flex justify-between items-center h-16">
           {/* Empty space for logo removal */}
