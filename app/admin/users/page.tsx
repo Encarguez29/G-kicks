@@ -11,7 +11,21 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { UserPlus, Users, Eye, EyeOff, Trash2, Edit } from 'lucide-react';
+import { UserPlus, Users, Eye, EyeOff, Trash2, Edit, Shield } from 'lucide-react';
+
+// Admin user interface for admin_users table
+interface StaffAdminUser {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: 'admin' | 'staff';
+  permissions: any;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 interface AdminUser {
   id: number;
@@ -34,8 +48,19 @@ interface CreateUserForm {
   phone: string;
 }
 
+interface CreateAdminForm {
+  email: string;
+  password: string;
+  confirmPassword: string;
+  first_name: string;
+  last_name: string;
+  username: string;
+  role: 'admin' | 'staff';
+}
+
 export default function AdminUsersPage() {
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [staffAdminUsers, setStaffAdminUsers] = useState<StaffAdminUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -51,15 +76,107 @@ export default function AdminUsersPage() {
     phone: ''
   });
 
-  // Fetch admin users
+  const [createAdminForm, setCreateAdminForm] = useState<CreateAdminForm>({
+    email: '',
+    password: '',
+    confirmPassword: '',
+    first_name: '',
+    last_name: '',
+    username: '',
+    role: 'staff'
+  });
+
+  // Fetch all users from gkicks database
   const fetchAdminUsers = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/mysql');
+      const response = await fetch('/api/admin/users/gkicks');
       const data = await response.json();
       
       if (response.ok) {
-        setAdminUsers(data.adminUsers || []);
+        setAdminUsers(data.data || []);
+      } else {
+        setError(data.error || 'Failed to fetch users');
+      }
+    } catch (err) {
+      setError('Network error while fetching users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Create new staff admin user
+  const handleCreateAdminUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    // Validation
+    if (!createAdminForm.email || !createAdminForm.password || !createAdminForm.first_name || !createAdminForm.last_name || !createAdminForm.username) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    if (createAdminForm.password !== createAdminForm.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (createAdminForm.password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch('/api/admin/admin-users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: createAdminForm.email,
+          password: createAdminForm.password,
+          first_name: createAdminForm.first_name,
+          last_name: createAdminForm.last_name,
+          username: createAdminForm.username,
+          role: createAdminForm.role
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setSuccess(`Admin user created successfully: ${data.email}`);
+        setCreateAdminForm({
+          email: '',
+          password: '',
+          confirmPassword: '',
+          first_name: '',
+          last_name: '',
+          username: '',
+          role: 'staff'
+        });
+        fetchStaffAdminUsers(); // Refresh the list
+      } else {
+        setError(data.error || 'Failed to create admin user');
+      }
+    } catch (err) {
+      setError('Network error while creating admin user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch staff admin users from admin_users table
+  const fetchStaffAdminUsers = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/admin/admin-users');
+      const data = await response.json();
+      
+      if (response.ok) {
+        setStaffAdminUsers(data.data || []);
       } else {
         setError(data.error || 'Failed to fetch admin users');
       }
@@ -94,7 +211,7 @@ export default function AdminUsersPage() {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/mysql', {
+      const response = await fetch('/api/admin/users/gkicks', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -111,7 +228,7 @@ export default function AdminUsersPage() {
       const data = await response.json();
       
       if (response.ok) {
-        setSuccess(`Admin user created successfully: ${data.email}`);
+        setSuccess(`User created successfully: ${data.email}`);
         setCreateForm({
           email: '',
           password: '',
@@ -122,37 +239,37 @@ export default function AdminUsersPage() {
         });
         fetchAdminUsers(); // Refresh the list
       } else {
-        setError(data.error || 'Failed to create admin user');
+        setError(data.error || 'Failed to create user');
       }
     } catch (err) {
-      setError('Network error while creating admin user');
+      setError('Network error while creating user');
     } finally {
       setLoading(false);
     }
   };
 
-  // Deactivate admin user
+  // Deactivate user
   const handleDeactivateUser = async (userId: number) => {
-    if (!confirm('Are you sure you want to deactivate this admin user?')) {
+    if (!confirm('Are you sure you want to deactivate this user?')) {
       return;
     }
 
     try {
       setLoading(true);
-      const response = await fetch(`/api/admin/mysql?id=${userId}`, {
+      const response = await fetch(`/api/admin/users/gkicks?id=${userId}`, {
         method: 'DELETE'
       });
 
       const data = await response.json();
       
       if (response.ok) {
-        setSuccess('Admin user deactivated successfully');
+        setSuccess('User deactivated successfully');
         fetchAdminUsers(); // Refresh the list
       } else {
-        setError(data.error || 'Failed to deactivate admin user');
+        setError(data.error || 'Failed to deactivate user');
       }
     } catch (err) {
-      setError('Network error while deactivating admin user');
+      setError('Network error while deactivating user');
     } finally {
       setLoading(false);
     }
@@ -160,20 +277,21 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     fetchAdminUsers();
+    fetchStaffAdminUsers();
   }, []);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Admin User Management</h1>
+          <h1 className="text-3xl font-bold">User Management</h1>
           <p className="text-muted-foreground mt-2">
-            Create and manage admin accounts for the MySQL database
+            Create and manage user accounts for the GKicks database
           </p>
         </div>
         <Badge variant="outline" className="px-3 py-1">
           <Users className="w-4 h-4 mr-2" />
-          {adminUsers.length} Admin Users
+          {adminUsers.length} Users
         </Badge>
       </div>
 
@@ -193,20 +311,24 @@ export default function AdminUsersPage() {
         <TabsList>
           <TabsTrigger value="create" className="flex items-center gap-2">
             <UserPlus className="w-4 h-4" />
-            Create Admin User
+            Create User
           </TabsTrigger>
           <TabsTrigger value="manage" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
             Manage Users
+          </TabsTrigger>
+          <TabsTrigger value="admin" className="flex items-center gap-2">
+            <Shield className="w-4 h-4" />
+            Admin Users
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="create">
           <Card>
             <CardHeader>
-              <CardTitle>Create New Admin User</CardTitle>
+              <CardTitle>Create New User</CardTitle>
               <CardDescription>
-                Create a new administrator account for the MySQL database
+                Create a new user account for the GKicks database
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -317,7 +439,7 @@ export default function AdminUsersPage() {
                 </div>
 
                 <Button type="submit" disabled={loading} className="w-full">
-                  {loading ? 'Creating...' : 'Create Admin User'}
+                  {loading ? 'Creating...' : 'Create User'}
                 </Button>
               </form>
             </CardContent>
@@ -327,21 +449,21 @@ export default function AdminUsersPage() {
         <TabsContent value="manage">
           <Card>
             <CardHeader>
-              <CardTitle>Existing Admin Users</CardTitle>
+              <CardTitle>Existing Users</CardTitle>
               <CardDescription>
-                Manage existing administrator accounts
+                Manage existing user accounts
               </CardDescription>
             </CardHeader>
             <CardContent>
               {loading && adminUsers.length === 0 ? (
                 <div className="text-center py-8">
-                  <p>Loading admin users...</p>
+                  <p>Loading users...</p>
                 </div>
               ) : adminUsers.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-muted-foreground">No admin users found</p>
+                  <p className="text-muted-foreground">No users found</p>
                   <p className="text-sm text-muted-foreground mt-2">
-                    Create your first admin user using the "Create Admin User" tab
+                    Create your first user using the "Create User" tab
                   </p>
                 </div>
               ) : (
@@ -363,7 +485,7 @@ export default function AdminUsersPage() {
                             <Badge variant={user.is_active ? "default" : "secondary"}>
                               {user.is_active ? "Active" : "Inactive"}
                             </Badge>
-                            <Badge variant="outline">Admin</Badge>
+                            {user.is_admin && <Badge variant="outline">Admin</Badge>}
                           </div>
                         </div>
                         <div className="mt-2 text-xs text-muted-foreground">
@@ -388,6 +510,190 @@ export default function AdminUsersPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Admin Users Tab */}
+        <TabsContent value="admin">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Create Admin User Form */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Create New Admin User</CardTitle>
+                <CardDescription>
+                  Create a new administrator account for the staff management system
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleCreateAdminUser} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="admin-first-name">First Name *</Label>
+                      <Input
+                        id="admin-first-name"
+                        type="text"
+                        value={createAdminForm.first_name}
+                        onChange={(e) => setCreateAdminForm({...createAdminForm, first_name: e.target.value})}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="admin-last-name">Last Name *</Label>
+                      <Input
+                        id="admin-last-name"
+                        type="text"
+                        value={createAdminForm.last_name}
+                        onChange={(e) => setCreateAdminForm({...createAdminForm, last_name: e.target.value})}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-username">Username *</Label>
+                    <Input
+                      id="admin-username"
+                      type="text"
+                      value={createAdminForm.username}
+                      onChange={(e) => setCreateAdminForm({...createAdminForm, username: e.target.value})}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-email">Email *</Label>
+                    <Input
+                      id="admin-email"
+                      type="email"
+                      value={createAdminForm.email}
+                      onChange={(e) => setCreateAdminForm({...createAdminForm, email: e.target.value})}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-role">Role *</Label>
+                    <select
+                      id="admin-role"
+                      value={createAdminForm.role}
+                      onChange={(e) => setCreateAdminForm({...createAdminForm, role: e.target.value as 'admin' | 'staff'})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="staff">Staff</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-password">Password *</Label>
+                    <div className="relative">
+                      <Input
+                        id="admin-password"
+                        type={showPassword ? "text" : "password"}
+                        value={createAdminForm.password}
+                        onChange={(e) => setCreateAdminForm({...createAdminForm, password: e.target.value})}
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-confirm-password">Confirm Password *</Label>
+                    <div className="relative">
+                      <Input
+                        id="admin-confirm-password"
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={createAdminForm.confirmPassword}
+                        onChange={(e) => setCreateAdminForm({...createAdminForm, confirmPassword: e.target.value})}
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      >
+                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? 'Creating...' : 'Create Admin User'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Existing Admin Users */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Existing Admin Users</CardTitle>
+                <CardDescription>
+                  Manage existing administrator accounts
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="text-center py-4">Loading admin users...</div>
+                ) : staffAdminUsers.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No admin users found. Create Admin User to get started.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {staffAdminUsers.map((admin) => (
+                      <div key={admin.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium">{admin.first_name} {admin.last_name}</h3>
+                            <Badge variant={admin.role === 'admin' ? 'destructive' : 'secondary'}>
+                              {admin.role}
+                            </Badge>
+                            {admin.is_active && (
+                              <Badge variant="outline" className="text-green-600 border-green-600">
+                                Active
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">{admin.email}</p>
+                          <p className="text-sm text-muted-foreground">@{admin.username}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {/* TODO: Add edit functionality */}}
+                            disabled={loading}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {/* TODO: Add deactivate functionality */}}
+                            disabled={loading}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
