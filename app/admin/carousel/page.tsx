@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Trash2, Edit, Plus, Eye } from "lucide-react"
+import { Archive, Edit, Plus, Eye } from "lucide-react"
 import { toast } from "sonner"
 
 interface CarouselSlide {
@@ -38,6 +39,8 @@ export default function CarouselManagement() {
   const [loading, setLoading] = useState(true)
   const [editingSlide, setEditingSlide] = useState<CarouselSlide | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false)
+  const [slideToArchive, setSlideToArchive] = useState<CarouselSlide | null>(null)
   const [uploading, setUploading] = useState(false)
   const [formData, setFormData] = useState({
     title: "",
@@ -56,7 +59,7 @@ export default function CarouselManagement() {
 
   const fetchSlides = async () => {
     try {
-      const response = await fetch('/api/carousel')
+      const response = await fetch('/api/admin/carousel')
       if (response.ok) {
         const data = await response.json()
         setSlides(data)
@@ -146,23 +149,29 @@ export default function CarouselManagement() {
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this slide?')) return
+  const handleArchive = async () => {
+    if (!slideToArchive) return
     
     try {
-      const response = await fetch(`/api/carousel?id=${id}`, {
-        method: 'DELETE',
+      const response = await fetch(`/api/admin/carousel?id=${slideToArchive.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ is_archived: true }),
       })
 
       if (response.ok) {
-        toast.success('Slide deleted successfully')
+        toast.success('Slide archived successfully')
         fetchSlides()
+        setIsArchiveDialogOpen(false)
+        setSlideToArchive(null)
       } else {
-        toast.error('Failed to delete slide')
+        toast.error('Failed to archive slide')
       }
     } catch (error) {
-      console.error('Error deleting slide:', error)
-      toast.error('Error deleting slide')
+      console.error('Error archiving slide:', error)
+      toast.error('Failed to archive slide')
     }
   }
 
@@ -436,10 +445,13 @@ export default function CarouselManagement() {
                     </Button>
                     <Button
                       size="sm"
-                      variant="destructive"
-                      onClick={() => handleDelete(slide.id)}
+                      className="bg-orange-500 hover:bg-orange-600 text-white"
+                      onClick={() => {
+                        setSlideToArchive(slide)
+                        setIsArchiveDialogOpen(true)
+                      }}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Archive className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
@@ -458,6 +470,27 @@ export default function CarouselManagement() {
           ))
         )}
       </div>
+
+      {/* Archive Confirmation Dialog */}
+      <AlertDialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-orange-600">Archive Carousel Slide</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to archive "{slideToArchive?.title}"? This slide will be hidden from the carousel but can be restored later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleArchive}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              Archive Slide
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

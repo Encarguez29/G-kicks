@@ -4,17 +4,43 @@ import jwt from 'jsonwebtoken'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret'
 
+// Helper function to get user from token
+async function getUserFromToken(request: NextRequest) {
+  const authHeader = request.headers.get('authorization')
+  
+  try {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('🚫 WISHLIST: No valid authorization header found')
+      return null
+    }
+
+    const token = authHeader.substring(7)
+    console.log('🔍 WISHLIST: Token received:', token.substring(0, 50) + '...')
+    console.log('🔍 WISHLIST: Token length:', token.length)
+    console.log('🔍 WISHLIST: Token parts:', token.split('.').length)
+    
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string, email: string }
+    console.log('✅ WISHLIST: Token verified successfully for user:', decoded.userId)
+    return { id: decoded.userId, email: decoded.email }
+  } catch (error) {
+    console.error('❌ WISHLIST: Token verification failed:', error)
+    console.error('❌ WISHLIST: Token that failed:', authHeader?.substring(7, 57) + '...')
+    return null
+  }
+}
+
 // Get user's wishlist
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    
-    if (!token) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await getUserFromToken(request)
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as any
-    const userId = decoded.userId
+    const userId = user.id
 
     console.log('🔍 API: Fetching wishlist for user:', userId)
 
@@ -98,14 +124,15 @@ export async function GET(request: NextRequest) {
 // Add item to wishlist
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    
-    if (!token) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await getUserFromToken(request)
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as any
-    const userId = decoded.userId
+    const userId = user.id
     
     const { productId } = await request.json()
     
@@ -142,14 +169,15 @@ export async function POST(request: NextRequest) {
 // Remove item from wishlist
 export async function DELETE(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    
-    if (!token) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await getUserFromToken(request)
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as any
-    const userId = decoded.userId
+    const userId = user.id
     
     const { searchParams } = new URL(request.url)
     const productId = searchParams.get('productId')

@@ -6,7 +6,7 @@ import Image from "next/image"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useAdmin } from "@/contexts/admin-context"
-import { Menu, X, Home, Package, ShoppingCart, BarChart3, Calculator, User, Settings, LogOut, Shield } from "lucide-react"
+import { Menu, X, Home, Package, ShoppingCart, BarChart3, Calculator, User, Settings, LogOut, Shield, Archive } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -58,6 +58,7 @@ export function AdminHeader() {
     { href: "/admin/analytics", icon: BarChart3, label: "Analytics", active: pathname === "/admin/analytics", permission: "analytics" },
     { href: "/admin/pos", icon: Calculator, label: "POS", active: pathname === "/admin/pos", permission: "pos" },
     { href: "/admin/users", icon: User, label: "Users", active: pathname === "/admin/users", permission: "users" },
+    { href: "/admin/archive", icon: Archive, label: "Archive", active: pathname === "/admin/archive", permission: "archive" },
     { href: "/admin/backup", icon: Shield, label: "Backup", active: pathname === "/admin/backup", permission: "backup" },
   ]
   
