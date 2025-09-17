@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import mysql from 'mysql2/promise'
+import jwt from 'jsonwebtoken'
 
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
@@ -8,6 +9,8 @@ const dbConfig = {
   database: process.env.DB_NAME || 'gkicks',
   port: parseInt(process.env.DB_PORT || '3306'),
 }
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
 async function getConnection() {
   try {
@@ -23,6 +26,39 @@ export async function DELETE(request: NextRequest) {
   let connection: mysql.Connection | null = null
 
   try {
+    // Get token from cookie or Authorization header
+    const token = request.cookies.get('auth_token')?.value || 
+                  request.headers.get('authorization')?.replace('Bearer ', '')
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    // Verify JWT token
+    let decoded: any
+    try {
+      decoded = jwt.verify(token, JWT_SECRET)
+    } catch (error) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid token' },
+        { status: 401 }
+      )
+    }
+
+    // Check if user has admin or staff privileges
+    const isAdmin = decoded.role === 'admin' || decoded.role === 'legacy_admin'
+    const isStaff = decoded.email === 'gkicksstaff@gmail.com'
+    
+    if (!isAdmin && !isStaff) {
+      return NextResponse.json(
+        { success: false, error: 'Insufficient privileges' },
+        { status: 403 }
+      )
+    }
+
     const { id, type } = await request.json()
 
     if (!id || !type) {

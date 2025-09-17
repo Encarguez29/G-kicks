@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Set Staff JWT Token</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .token-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            word-break: break-all;
+            margin: 20px 0;
+            border: 1px solid #dee2e6;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔑 Set Staff JWT Token</h1>
+        
+        <div class="info">
+            <strong>Instructions:</strong>
+            <ol>
+                <li>Click "Set Staff Token" to store the correct JWT token</li>
+                <li>Go to the POS page to test inventory loading</li>
+                <li>The token has role: "staff" which should allow access to inventory</li>
+            </ol>
+        </div>
+
+        <h3>Current Token in localStorage:</h3>
+        <div class="token-box" id="currentToken">Loading...</div>
+
+        <h3>Staff Token (with correct role):</h3>
+        <div class="token-box" id="staffToken">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsImVtYWlsIjoiZ2tpY2tzc3RhZmZAZ21haWwuY29tIiwicm9sZSI6InN0YWZmIiwiaWF0IjoxNzU4MDg5NjAxLCJleHAiOjE3NTg2OTQ0MDF9.40nrM3yTWQqHGAr-VvdPMC-4Irwg0RpQxzXVFJiZWeo</div>
+
+        <div>
+            <button onclick="setStaffToken()">🔑 Set Staff Token</button>
+            <button onclick="clearToken()">🗑️ Clear Token</button>
+            <button onclick="checkToken()">🔍 Check Current Token</button>
+            <button onclick="goToPOS()">🏪 Go to POS</button>
+        </div>
+
+        <div id="result" style="margin-top: 20px;"></div>
+
+        <h3>Token Details:</h3>
+        <div id="tokenDetails"></div>
+    </div>
+
+    <script>
+        const STAFF_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsImVtYWlsIjoiZ2tpY2tzc3RhZmZAZ21haWwuY29tIiwicm9sZSI6InN0YWZmIiwiaWF0IjoxNzU4MDg5NjAxLCJleHAiOjE3NTg2OTQ0MDF9.40nrM3yTWQqHGAr-VvdPMC-4Irwg0RpQxzXVFJiZWeo';
+
+        function setStaffToken() {
+            try {
+                localStorage.setItem('auth_token', STAFF_TOKEN);
+                document.getElementById('result').innerHTML = '<p class="success">✅ Staff token set successfully!</p>';
+                updateCurrentToken();
+                decodeAndShowToken(STAFF_TOKEN);
+            } catch (error) {
+                document.getElementById('result').innerHTML = '<p class="error">❌ Error setting token: ' + error.message + '</p>';
+            }
+        }
+
+        function clearToken() {
+            try {
+                localStorage.removeItem('auth_token');
+                document.getElementById('result').innerHTML = '<p class="success">✅ Token cleared successfully!</p>';
+                updateCurrentToken();
+                document.getElementById('tokenDetails').innerHTML = '';
+            } catch (error) {
+                document.getElementById('result').innerHTML = '<p class="error">❌ Error clearing token: ' + error.message + '</p>';
+            }
+        }
+
+        function checkToken() {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                decodeAndShowToken(token);
+                document.getElementById('result').innerHTML = '<p class="success">✅ Token found and decoded!</p>';
+            } else {
+                document.getElementById('result').innerHTML = '<p class="error">❌ No token found in localStorage</p>';
+                document.getElementById('tokenDetails').innerHTML = '';
+            }
+        }
+
+        function updateCurrentToken() {
+            const token = localStorage.getItem('auth_token');
+            const currentTokenDiv = document.getElementById('currentToken');
+            if (token) {
+                currentTokenDiv.textContent = token.substring(0, 100) + '...';
+            } else {
+                currentTokenDiv.textContent = 'No token found';
+            }
+        }
+
+        function decodeAndShowToken(token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const exp = new Date(payload.exp * 1000);
+                
+                document.getElementById('tokenDetails').innerHTML = `
+                    <div style="background: #e9ecef; padding: 15px; border-radius: 5px; margin-top: 10px;">
+                        <strong>Token Payload:</strong><br>
+                        User ID: ${payload.userId}<br>
+                        Email: ${payload.email}<br>
+                        Role: <strong style="color: ${payload.role === 'staff' ? '#28a745' : '#dc3545'}">${payload.role}</strong><br>
+                        Expires: ${exp.toLocaleString()}<br>
+                        Valid: ${exp > new Date() ? '✅ Yes' : '❌ Expired'}
+                    </div>
+                `;
+            } catch (error) {
+                document.getElementById('tokenDetails').innerHTML = '<p class="error">❌ Error decoding token: ' + error.message + '</p>';
+            }
+        }
+
+        function goToPOS() {
+            window.location.href = '/admin/pos';
+        }
+
+        // Initialize on page load
+        window.onload = function() {
+            updateCurrentToken();
+            checkToken();
+        };
+    </script>
+</body>
+</html>

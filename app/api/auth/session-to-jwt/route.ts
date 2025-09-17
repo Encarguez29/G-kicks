@@ -25,27 +25,45 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get user from database to get the user ID
-    const userArray = await executeQuery(
-      'SELECT id, email, first_name, last_name, is_admin FROM users WHERE email = ?',
+    // First check admin_users table for staff/admin roles
+    const adminUserArray = await executeQuery(
+      'SELECT id, email, first_name, last_name, role FROM admin_users WHERE email = ? AND is_active = 1',
       [session.user.email || null]
     ) as any[]
 
-    if (userArray.length === 0) {
-      return NextResponse.json(
-        { error: 'User not found in database' },
-        { status: 404 }
-      )
-    }
+    let user = null
+    let userRole = 'user'
+    let isAdminUser = false
 
-    const user = userArray[0]
+    if (adminUserArray.length > 0) {
+      // User found in admin_users table
+      user = adminUserArray[0]
+      userRole = user.role // 'admin' or 'staff' from admin_users table
+      isAdminUser = true
+    } else {
+      // Fallback to regular users table
+      const userArray = await executeQuery(
+        'SELECT id, email, first_name, last_name, is_admin FROM users WHERE email = ?',
+        [session.user.email || null]
+      ) as any[]
+
+      if (userArray.length === 0) {
+        return NextResponse.json(
+          { error: 'User not found in database' },
+          { status: 404 }
+        )
+      }
+
+      user = userArray[0]
+      userRole = user.is_admin ? 'admin' : 'user'
+    }
 
     // Generate JWT token
     const token = jwt.sign(
       { 
         userId: user.id, 
         email: user.email,
-        role: user.is_admin ? 'admin' : 'staff'
+        role: userRole
       },
       JWT_SECRET,
       { expiresIn: '7d' }
@@ -59,7 +77,7 @@ export async function POST(request: NextRequest) {
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
-        role: user.is_admin ? 'admin' : 'staff'
+        role: userRole
       }
     })
 
