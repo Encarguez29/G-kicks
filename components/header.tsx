@@ -20,6 +20,7 @@ import {
   Shield,
   Calculator,
   ShoppingBag,
+  Archive,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -316,7 +317,7 @@ export function Header({ onSearch }: HeaderProps) {
                     </>
                   )}
 
-                  {/* Staff Access - Limited to Orders and POS */}
+                  {/* Staff Access - Limited to Orders, POS, and Archive */}
                   {hasStaffAccess() && (
                     <>
                       <DropdownMenuSeparator />
@@ -330,6 +331,12 @@ export function Header({ onSearch }: HeaderProps) {
                         <Link href="/admin/pos" className="flex items-center text-green-600 font-medium">
                           <Calculator className="mr-2 h-4 w-4" />
                           POS System
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin/archive" className="flex items-center text-orange-600 font-medium">
+                          <Archive className="mr-2 h-4 w-4" />
+                          Archive
                         </Link>
                       </DropdownMenuItem>
                     </>
@@ -472,7 +479,7 @@ export function Header({ onSearch }: HeaderProps) {
                       </Link>
                     )}
                     
-                    {/* Staff Access - Limited to Orders and POS */}
+                    {/* Staff Access - Limited to Orders, POS, and Archive */}
                     {hasStaffAccess() && (
                       <div className="space-y-2">
                         <Link
@@ -490,6 +497,14 @@ export function Header({ onSearch }: HeaderProps) {
                         >
                           <Calculator className="mr-2 h-4 w-4" />
                           POS System
+                        </Link>
+                        <Link
+                          href="/admin/archive"
+                          className="flex items-center justify-center px-4 py-3 text-sm font-medium text-orange-600 transition-colors bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          <Archive className="mr-2 h-4 w-4" />
+                          Archive
                         </Link>
                       </div>
                     )}

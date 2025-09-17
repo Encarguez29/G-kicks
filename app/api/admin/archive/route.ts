@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import mysql from 'mysql2/promise'
+import jwt from 'jsonwebtoken'
+
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret'
 
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
@@ -23,7 +26,63 @@ export async function GET(request: NextRequest) {
   let connection: mysql.Connection | null = null
 
   try {
+    console.log('🔍 Archive API: Fetching archived items...')
+    
+    // Check authentication using JWT token
+    let token = request.cookies.get('auth-token')?.value
+    
+    // If no cookie token, try Authorization header
+    if (!token) {
+      const authHeader = request.headers.get('authorization')
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7)
+      }
+    }
+
+    if (!token) {
+      console.log('❌ Archive API: No token provided')
+      return NextResponse.json(
+        { error: 'No authentication token provided' },
+        { status: 401 }
+      )
+    }
+
+    // Verify token
+    let decoded: any
+    try {
+      decoded = jwt.verify(token, JWT_SECRET)
+    } catch (error) {
+      console.log('❌ Archive API: Invalid token')
+      return NextResponse.json(
+        { error: 'Invalid authentication token' },
+        { status: 401 }
+      )
+    }
+    
+    // Check if user has admin/staff role
+    const userEmail = decoded.email
+    console.log('🔍 Archive API: Checking admin status for:', userEmail)
+    
     connection = await getConnection()
+    
+    const [adminCheck] = await connection.execute(
+      'SELECT role FROM admin_users WHERE email = ? AND is_active = 1',
+      [userEmail]
+    ) as any[]
+    
+    const isLegacyAdmin = userEmail === 'gkcksdmn@gmail.com'
+    const isStaffUser = userEmail === 'gkicksstaff@gmail.com'
+    
+    if (adminCheck.length === 0 && !isLegacyAdmin && !isStaffUser) {
+      console.log('❌ Archive API: User not found in admin_users or not authorized')
+      return NextResponse.json(
+        { error: 'Access denied. Admin or staff role required.' },
+        { status: 403 }
+      )
+    }
+    
+    const userRole = adminCheck.length > 0 ? adminCheck[0].role : (isLegacyAdmin ? 'admin' : 'staff')
+    console.log('✅ Archive API: Access granted for role:', userRole)
 
     // Get archived products (soft deleted)
     const [archivedProducts] = await connection.execute(`

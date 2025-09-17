@@ -146,11 +146,13 @@ export default function POSPage() {
 }, [selectedProduct, selectedColor]);
 
   useEffect(() => {
-    loadDailySales()
-    refreshInventory()
-    loadDailySales()
-    loadTransactions()
-  }, [])
+    // Only load data when admin is authenticated and not loading
+    if (state.isAuthenticated && !state.isLoading) {
+      loadDailySales()
+      refreshInventory()
+      loadTransactions()
+    }
+  }, [state.isAuthenticated, state.isLoading])
 
   // Mobile detection useEffect
   useEffect(() => {
