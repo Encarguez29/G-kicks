@@ -6,7 +6,7 @@ import Image from "next/image"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useAdmin } from "@/contexts/admin-context"
-import { Menu, X, Home, Package, ShoppingCart, BarChart3, Calculator, User, Settings, LogOut, Shield, Archive } from "lucide-react"
+import { Menu, X, Home, Package, ShoppingCart, BarChart3, Calculator, User, Settings, LogOut, Shield, Archive, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { AdminNotifications } from "@/components/admin-notifications"
+import { AdminMessages } from "@/components/admin-messages"
 // Removed Supabase auth - using local authentication
 
 export function AdminHeader() {
@@ -97,6 +98,9 @@ export function AdminHeader() {
           <div className="flex items-center space-x-4">
             {/* Notifications */}
             <AdminNotifications />
+            
+            {/* Messages */}
+            <AdminMessages />
             
             {/* Back to Store */}
             <Button
