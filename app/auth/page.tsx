@@ -22,6 +22,7 @@ export default function AuthPage() {
   const [mounted, setMounted] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [isSignUp, setIsSignUp] = useState(false)
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
@@ -83,6 +84,15 @@ export default function AuthPage() {
       toast({
         title: "Error",
         description: "Please fill in all required fields.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (isSignUp && password !== confirmPassword) {
+      toast({
+        title: "Error",
+        description: "Passwords do not match.",
         variant: "destructive",
       })
       return
@@ -399,6 +409,22 @@ export default function AuthPage() {
             </div>
           </div>
 
+          {isSignUp && (
+            <div>
+              <label htmlFor="confirmPassword" className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                Confirm Password
+              </label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className={`w-full focus:border-yellow-400 focus:ring-yellow-400 ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'}`}
+                placeholder="Confirm your password"
+                required={isSignUp}
+              />
+            </div>
+          )}
           <Button
             type="submit"
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
