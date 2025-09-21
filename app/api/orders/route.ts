@@ -233,8 +233,8 @@ export async function POST(request: NextRequest) {
     // Generate order number
     const orderNumber = `GK${Date.now()}`
 
-    // Calculate order totals
-    const subtotal = Number(total) || 0
+    // Calculate order totals from items (not from frontend total to avoid double taxation)
+    const subtotal = items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0)
     const taxAmount = subtotal * 0.12 // 12% VAT
     const shippingAmount = subtotal > 2000 ? 0 : 150 // Free shipping over ₱2000
     const discountAmount = 0
