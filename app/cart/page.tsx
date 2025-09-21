@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Smartphone, User, CheckCircle, Receipt, Upload } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
@@ -54,6 +55,7 @@ export default function CartPage() {
   const [paymentMethod, setPaymentMethod] = useState("")
   const [paymentScreenshot, setPaymentScreenshot] = useState<string | null>(null)
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null)
+  const [termsAccepted, setTermsAccepted] = useState(false)
 
   useEffect(() => {
     async function loadUserProfileAndAddress() {
@@ -233,6 +235,16 @@ export default function CartPage() {
       toast({
         title: "Payment Screenshot Required",
         description: `Please upload a screenshot of your ${paymentMethod} payment.`,
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Validate terms and conditions acceptance
+    if (!termsAccepted) {
+      toast({
+        title: "Terms and Conditions Required",
+        description: "Please accept the terms and conditions to proceed with your order.",
         variant: "destructive"
       })
       return
@@ -644,6 +656,48 @@ export default function CartPage() {
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       Order confirmation will be sent to this email
                     </p>
+                  </div>
+
+                  <Separator className="bg-gray-200 dark:bg-gray-700" />
+
+                  {/* Terms and Conditions */}
+                  <div className="space-y-4">
+                    <div className="flex items-start space-x-3">
+                      <Checkbox
+                        id="terms"
+                        checked={termsAccepted}
+                        onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
+                        className="mt-1"
+                      />
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="terms"
+                          className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer leading-relaxed"
+                        >
+                          I agree to the{" "}
+                          <a
+                            href="/terms"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                          >
+                            Terms of Service
+                          </a>{" "}
+                          and{" "}
+                          <a
+                            href="/privacy"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                          >
+                            Privacy Policy
+                          </a>
+                        </Label>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          By checking this box, you acknowledge that you have read and agree to our terms and conditions.
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   <Separator className="bg-gray-200 dark:bg-gray-700" />
