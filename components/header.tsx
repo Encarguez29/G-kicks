@@ -21,6 +21,7 @@ import {
   Calculator,
   ShoppingBag,
   Archive,
+  MessageCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,6 +49,8 @@ export function Header({ onSearch }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [mounted, setMounted] = useState(false)
+  const [isMessagingOpen, setIsMessagingOpen] = useState(false)
+  const [unreadMessages, setUnreadMessages] = useState(3) // Mock unread count
   const { theme, setTheme, resolvedTheme } = useTheme()
   const { user, signOut, loading: authLoading } = useAuth()
   const cartContext = useCart()
@@ -63,6 +66,20 @@ export function Header({ onSearch }: HeaderProps) {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isMessagingOpen) {
+        const target = event.target as Element
+        if (!target.closest('[data-messaging-dropdown]')) {
+          setIsMessagingOpen(false)
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isMessagingOpen])
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen)
 
@@ -226,6 +243,82 @@ export function Header({ onSearch }: HeaderProps) {
               </Link>
             </Button>
 
+            {/* Messages */}
+             <div className="relative" data-messaging-dropdown>
+               <Button 
+                 variant="ghost" 
+                 size="sm" 
+                 onClick={() => setIsMessagingOpen(!isMessagingOpen)}
+                 className={`relative hover:text-yellow-400 ${iconColorClass} h-8 w-8 p-0 hidden md:flex`}
+               >
+                 <MessageCircle className="h-4 w-4" />
+                 {unreadMessages > 0 && (
+                   <Badge className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center p-0 text-xs bg-blue-500 hover:bg-blue-600">
+                     {unreadMessages}
+                   </Badge>
+                 )}
+                 <span className="sr-only">Messages</span>
+               </Button>
+
+               {/* Messages Dropdown */}
+               {isMessagingOpen && (
+                 <div className="absolute right-0 top-full mt-2 w-80 bg-background border border-border rounded-lg shadow-lg z-50">
+                  <div className="p-4 border-b border-border">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-lg">Customer Support</h3>
+                      <div className="flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="text-xs text-muted-foreground">Online</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4">
+                    <div className="p-3 hover:bg-accent/50 cursor-pointer rounded-lg border border-border" onClick={() => {
+                      setIsMessagingOpen(false)
+                      router.push('/customer-support')
+                    }}>
+                      <div className="flex items-start space-x-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback className="bg-yellow-400 text-black text-sm font-semibold">GK</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-sm font-semibold">GKicks Customer Support</p>
+                            <span className="text-xs text-green-600 font-medium">Available</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Get help with your orders, shipping, returns, and more. Our support team is ready to assist you!
+                          </p>
+                          <div className="flex items-center mt-2 space-x-2">
+                            <Badge variant="secondary" className="text-xs">
+                              Order Support
+                            </Badge>
+                            <Badge variant="secondary" className="text-xs">
+                              Live Chat
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 border-t border-border">
+                    <Button 
+                      className="w-full bg-yellow-400 text-black hover:bg-yellow-500"
+                      onClick={() => {
+                        setIsMessagingOpen(false)
+                        router.push('/customer-support')
+                      }}
+                    >
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      Start Chat About Your Orders
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Cart */}
             <Button variant="ghost" size="sm" asChild className={`relative hover:text-yellow-400 ${iconColorClass} h-8 w-8 p-0 hidden md:flex`}>
               <Link href="/cart">
@@ -286,15 +379,33 @@ export function Header({ onSearch }: HeaderProps) {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/cart" className="flex items-center">
-                      <ShoppingCart className="mr-2 h-4 w-4" />
-                      Cart
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
                     <Link href="/wishlist" className="flex items-center">
                       <Heart className="mr-2 h-4 w-4" />
                       Wishlist
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Button 
+                      variant="ghost"
+                      onClick={() => {
+                        setIsMenuOpen(false)
+                        setIsMessagingOpen(true)
+                      }}
+                      className="flex items-center w-full justify-start p-0 h-auto text-foreground"
+                    >
+                      <MessageCircle className="mr-2 h-4 w-4" />
+                      Messages
+                      {unreadMessages > 0 && (
+                        <Badge className="ml-auto h-4 w-4 flex items-center justify-center p-0 text-xs bg-blue-500">
+                          {unreadMessages}
+                        </Badge>
+                      )}
+                    </Button>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/cart" className="flex items-center">
+                      <ShoppingCart className="mr-2 h-4 w-4" />
+                      Cart
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
