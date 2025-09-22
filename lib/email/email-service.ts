@@ -158,7 +158,7 @@ export const sendWelcomeEmail = async (
             </div>
             <div class="footer">
               <p>© 2024 GKICKS Shop. All rights reserved.</p>
-              <p>Need help? Contact us at support@gkicks.com</p>
+              <p>Need help? Contact us at kurab1983@gmail.com</p>
             </div>
           </div>
         </body>
