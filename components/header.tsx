@@ -50,7 +50,7 @@ export function Header({ onSearch }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [mounted, setMounted] = useState(false)
   const [isMessagingOpen, setIsMessagingOpen] = useState(false)
-  const [unreadMessages, setUnreadMessages] = useState(3) // Mock unread count
+  const [unreadMessages, setUnreadMessages] = useState(0) // Mock unread count
   const { theme, setTheme, resolvedTheme } = useTheme()
   const { user, signOut, loading: authLoading } = useAuth()
   const cartContext = useCart()
