@@ -242,7 +242,6 @@ export interface Order {
     | "confirmed"
     | "processing"
     | "shipped"
-    | "delivered"
     | "cancelled";
   orderDate: string; // ISO string
   created_at?: string; // Database field
