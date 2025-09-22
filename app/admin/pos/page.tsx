@@ -860,199 +860,242 @@ export default function POSPage() {
         <title>Receipt</title>
         <style>
           body {
-            font-family: Arial, sans-serif;
-            font-size: 11px;
-            line-height: 1.3;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
             margin: 0;
-            padding: 15px;
-            width: 350px;
+            padding: 20px;
+            width: 400px;
             color: #333;
+            background: #f8f9fa;
+          }
+          .receipt-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
           }
           .logo-section {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
           }
           .logo-section img {
-            max-width: 120px;
+            max-width: 100px;
             height: auto;
           }
           .company-info {
-            text-align: justify;
-            margin-bottom: 20px;
-            font-size: 10px;
-            line-height: 1.4;
-          }
-          .company-info div {
-            text-align: justify;
+            text-align: left;
+            margin-bottom: 25px;
+            font-size: 11px;
+            line-height: 1.5;
           }
           .company-name {
             font-weight: bold;
-            margin-bottom: 2px;
-            text-align: justify;
+            margin-bottom: 3px;
           }
           .receipt-header {
             text-align: right;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
           }
           .receipt-title {
-            font-size: 24px;
+            font-size: 28px;
             font-weight: bold;
             margin-bottom: 10px;
+            color: #2c3e50;
           }
           .receipt-details {
-            font-size: 10px;
-            line-height: 1.4;
-          }
-          .receipt-details div {
-            text-align: justify;
+            font-size: 11px;
+            line-height: 1.5;
           }
           .customer-info {
-            text-align: justify;
-            margin-bottom: 20px;
-            font-size: 10px;
-            line-height: 1.4;
+            text-align: left;
+            margin-bottom: 25px;
+            font-size: 11px;
+            line-height: 1.5;
           }
-          .customer-info div {
-            text-align: justify;
+          .customer-label {
+            font-weight: bold;
+            margin-bottom: 3px;
           }
           .items-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            background: white;
           }
           .items-table th {
-            text-align: justify;
-            padding: 8px 0;
-            border-bottom: 1px solid #ddd;
+            padding: 12px 8px;
+            border-bottom: 2px solid #34495e;
             font-weight: bold;
-            font-size: 10px;
+            font-size: 11px;
+            background: #ecf0f1;
+            color: #2c3e50;
           }
           .items-table td {
-            padding: 6px 0;
-            border-bottom: 1px solid #eee;
-            font-size: 10px;
-            text-align: justify;
+            padding: 10px 8px;
+            border-bottom: 1px solid #ecf0f1;
+            font-size: 11px;
           }
-          .qty-col { width: 40px; text-align: center; }
-          .desc-col { width: 180px; text-align: justify; }
-          .price-col { width: 60px; text-align: right; }
-          .amount-col { width: 70px; text-align: right; }
+          .item-name {
+            font-weight: 600;
+            color: #2c3e50;
+          }
+          .item-details {
+            font-size: 10px;
+            color: #7f8c8d;
+            margin-top: 2px;
+          }
+          .qty-col { 
+            width: 60px; 
+            text-align: center; 
+          }
+          .desc-col { 
+            width: 200px; 
+            text-align: left; 
+          }
+          .price-col { 
+            width: 70px; 
+            text-align: right; 
+          }
+          .amount-col { 
+            width: 70px; 
+            text-align: right; 
+            font-weight: 600;
+          }
           .totals-section {
             margin-top: 20px;
-            padding-top: 10px;
-            text-align: justify;
+            padding-top: 15px;
+            border-top: 1px solid #ecf0f1;
           }
           .total-line {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 4px;
-            font-size: 10px;
-            text-align: justify;
+            margin-bottom: 8px;
+            font-size: 12px;
+          }
+          .subtotal-line {
+            padding-bottom: 8px;
           }
           .final-total {
             font-weight: bold;
-            font-size: 12px;
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px solid #333;
-            text-align: justify;
+            font-size: 16px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 2px solid #34495e;
+            color: #2c3e50;
+          }
+          .thank-you {
+            text-align: center;
+            margin: 25px 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3e50;
           }
           .contact-info {
-            margin-top: 30px;
-            text-align: justify;
-            font-size: 9px;
-            line-height: 1.4;
-          }
-          .contact-info div {
-            text-align: justify;
+            margin-top: 25px;
+            text-align: center;
+            font-size: 10px;
+            line-height: 1.5;
+            color: #7f8c8d;
+            border-top: 1px solid #ecf0f1;
+            padding-top: 15px;
           }
           @media print {
-            body { margin: 0; padding: 10px; }
+            body { 
+              margin: 0; 
+              padding: 10px; 
+              background: white;
+            }
+            .receipt-container {
+              box-shadow: none;
+              padding: 20px;
+            }
           }
         </style>
       </head>
       <body>
-        <div class="logo-section">
-          <img src="/images/gkicks-transparent-logo.png" alt="GKicks Logo" />
-        </div>
-        
-        <div class="company-info">
-          <div class="company-name">FROM</div>
-          <div>GKICKS SHOP</div>
-          <div>Your Address 1234</div>
-          <div>CA 12345</div>
-        </div>
-        
-        <div class="receipt-header">
-          <div class="receipt-title">RECEIPT</div>
-          <div class="receipt-details">
-            <div>Receipt #: ${transactionData.id.slice(-6)}</div>
-            <div>Receipt Date: ${new Date(transactionData.timestamp).toLocaleDateString()}</div>
+        <div class="receipt-container">
+          <div class="logo-section">
+            <img src="/images/gkicks-transparent-logo.png" alt="GKicks Logo" />
           </div>
-        </div>
-        
-        <div class="customer-info">
-          <div><strong>TO</strong></div>
-          <div>${transactionData.customerName || 'Customer Name'}</div>
-          <div>Customer Address 1234</div>
-          <div>CA 12345</div>
-        </div>
-        
-        <table class="items-table">
-          <thead>
-            <tr>
-              <th class="qty-col">QTY</th>
-              <th class="desc-col">Description</th>
-              <th class="price-col">Unit Price</th>
-              <th class="amount-col">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${transactionData.items.map((item: CartItem) => `
-              <tr>
-                <td class="qty-col">${item.quantity}</td>
-                <td class="desc-col">${item.name}<br><small style="color: #666;">${item.brand} • ${item.color} • Size ${item.size}</small></td>
-                <td class="price-col">₱{item.price.toFixed(2)}</td>
-                <td class="amount-col">₱{(item.price * item.quantity).toFixed(2)}</td>
-              </tr>
-            `).join('')}
-            ${Array.from({length: Math.max(0, 8 - transactionData.items.length)}, () => `
-              <tr>
-                <td class="qty-col">0</td>
-                <td class="desc-col"></td>
-                <td class="price-col">0.00</td>
-                <td class="amount-col">0.00</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        
-        <div class="totals-section">
-          <div class="total-line">
-            <span>Subtotal</span>
-            <span>₱{(transactionData.subtotal || transactionData.total).toFixed(2)}</span>
+          
+          <div class="company-info">
+            <div class="company-name">FROM</div>
+            <div>GKICKS SHOP</div>
+            <div>Canlubang Bridge, Mayapa-Canlubang Cadre Rd</div>
+            <div>Calamba, 4027 Laguna, Philippines</div>
           </div>
-          ${transactionData.discount ? `
-            <div class="total-line">
-              <span>Discount</span>
-              <span>-₱{transactionData.discount.toFixed(2)}</span>
+          
+          <div class="receipt-header">
+            <div class="receipt-title">RECEIPT</div>
+            <div class="receipt-details">
+              <div>Receipt #: ${transactionData.id.slice(-6)}</div>
+              <div>Receipt Date: ${new Date(transactionData.timestamp).toLocaleDateString()}</div>
             </div>
-          ` : ''}
-          <div class="total-line">
-            <span>Sales Tax (5%)</span>
-            <span>0.00</span>
           </div>
-          <div class="total-line final-total">
-            <span>Total</span>
-            <span>₱{transactionData.total.toFixed(2)}</span>
+          
+          <div class="customer-info">
+            <div class="customer-label">TO</div>
+            <div>${transactionData.customerName || 'Customer Name'}</div>
+            <div>Customer Address</div>
+            <div>Philippines</div>
+          </div>
+          
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th class="desc-col">Item</th>
+                <th class="qty-col">Quantity</th>
+                <th class="price-col">Unit Price</th>
+                <th class="amount-col">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${transactionData.items.map((item: CartItem) => `
+                <tr>
+                  <td class="desc-col">
+                    <div class="item-name">${item.name}</div>
+                    <div class="item-details">${item.brand} • ${item.color} • Size ${item.size}</div>
+                  </td>
+                  <td class="qty-col">${item.quantity}</td>
+                  <td class="price-col">₱${item.price.toFixed(2)}</td>
+                  <td class="amount-col">₱${(item.price * item.quantity).toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div class="totals-section">
+            <div class="total-line subtotal-line">
+              <span>Subtotal:</span>
+              <span>₱${(transactionData.subtotal || transactionData.total).toFixed(2)}</span>
+            </div>
+            ${transactionData.discount ? `
+              <div class="total-line">
+                <span>Discount:</span>
+                <span>-₱${transactionData.discount.toFixed(2)}</span>
+              </div>
+            ` : ''}
+            <div class="total-line">
+              <span>Tax (0%):</span>
+              <span>₱0.00</span>
+            </div>
+            <div class="total-line final-total">
+              <span>Total</span>
+              <span>₱${transactionData.total.toFixed(2)}</span>
+            </div>
+          </div>
+          
+          <div class="thank-you">
+            Thank you!
+          </div>
+          
+          <div class="contact-info">
+            <div>Tel: +63 956 879 8828</div>
+            <div>Email: kurab1983@gmail.com</div>
+            <div>Web: gkicks.shop</div>
           </div>
         </div>
-        
-        <div class="contact-info">
-           <div>Tel: +1 234 56 789</div>
-           <div>Email: company@email.com</div>
-           <div>Web: company.com</div>
-         </div>
         
         <script>
           window.onload = function() {

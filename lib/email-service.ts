@@ -181,7 +181,7 @@ function generateOrderReceiptHTML(orderData: OrderEmailData): string {
       <!-- Footer -->
       <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px; color: #666;">
         <p style="margin: 0 0 10px 0;">Thank you for choosing GKICKS!</p>
-        <p style="margin: 0; font-size: 14px;">If you have any questions, please contact us at support@gkicks.com</p>
+        <p style="margin: 0; font-size: 14px;">If you have any questions, please contact us at kurab1983@gmail.com</p>
         <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
           <p style="margin: 0; font-size: 12px; color: #999;">© 2024 GKICKS. All rights reserved.</p>
         </div>
