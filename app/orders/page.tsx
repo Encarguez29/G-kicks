@@ -156,6 +156,40 @@ export default function OrdersPage() {
     }
   }
 
+  const handleMarkAsDelivered = async (orderId: string) => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch(`/api/admin/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'delivered' })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to mark order as delivered')
+      }
+
+      // Refresh orders list
+      const updatedOrders = orders.map(order => 
+        order.id === orderId ? { ...order, status: 'delivered' } : order
+      )
+      setOrders(updatedOrders)
+      
+      // Update selected order if it's the same one
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, status: 'delivered' })
+      }
+
+      alert('Order marked as delivered successfully!')
+    } catch (error) {
+      console.error('Failed to mark order as delivered:', error)
+      alert('Failed to mark order as delivered. Please try again.')
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -444,6 +478,19 @@ export default function OrdersPage() {
                   )}
                 </div>
               </div>
+
+              {/* Action Buttons */}
+              {selectedOrder.status !== 'delivered' && selectedOrder.status !== 'cancelled' && (
+                <div className="flex gap-2 pt-4 border-t">
+                  <Button 
+                    onClick={() => handleMarkAsDelivered(selectedOrder.id)}
+                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    Mark as Delivered
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

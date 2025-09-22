@@ -38,7 +38,39 @@ export default function AdminOrdersPage() {
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null)
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false)
   const [orderToArchive, setOrderToArchive] = useState<Order | null>(null)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<Record<string, boolean>>({})
+  const [disabledButtons, setDisabledButtons] = useState<Record<string, Set<string>>>({})
   const { toast } = useToast()
+
+  // Load disabled buttons from localStorage on component mount
+  useEffect(() => {
+    const savedDisabledButtons = localStorage.getItem('admin_disabled_buttons')
+    if (savedDisabledButtons) {
+      try {
+        const parsed = JSON.parse(savedDisabledButtons)
+        // Convert arrays back to Sets
+        const converted: Record<string, Set<string>> = {}
+        Object.keys(parsed).forEach(orderId => {
+          converted[orderId] = new Set(parsed[orderId])
+        })
+        setDisabledButtons(converted)
+      } catch (error) {
+        console.error('Error loading disabled buttons from localStorage:', error)
+      }
+    }
+  }, [])
+
+  // Save disabled buttons to localStorage whenever it changes
+  useEffect(() => {
+    if (Object.keys(disabledButtons).length > 0) {
+      // Convert Sets to arrays for JSON serialization
+      const serializable: Record<string, string[]> = {}
+      Object.keys(disabledButtons).forEach(orderId => {
+        serializable[orderId] = Array.from(disabledButtons[orderId])
+      })
+      localStorage.setItem('admin_disabled_buttons', JSON.stringify(serializable))
+    }
+  }, [disabledButtons])
 
   // Check authentication
   useEffect(() => {
@@ -136,6 +168,15 @@ export default function AdminOrdersPage() {
   }, [orders, searchTerm, statusFilter])
 
   const handleStatusUpdate = async (orderId: string, newStatus: Order["status"]) => {
+    if (isUpdatingStatus[orderId]) return // Prevent multiple clicks
+    
+    // Disable the specific button that was clicked
+    setDisabledButtons(prev => ({
+      ...prev,
+      [orderId]: new Set([...(prev[orderId] || []), newStatus])
+    }))
+    
+    setIsUpdatingStatus(prev => ({ ...prev, [orderId]: true }))
     try {
       const token = localStorage.getItem('auth_token')
       const response = await fetch(`/api/admin/orders/${orderId}`, {
@@ -167,6 +208,8 @@ export default function AdminOrdersPage() {
         description: "Failed to update order status",
         variant: "destructive",
       })
+    } finally {
+      setIsUpdatingStatus(prev => ({ ...prev, [orderId]: false }))
     }
   }
 
@@ -263,8 +306,6 @@ export default function AdminOrdersPage() {
         return <Package className="h-4 w-4" />
       case "shipped":
         return <Truck className="h-4 w-4" />
-      case "delivered":
-        return <CheckCircle className="h-4 w-4" />
       case "cancelled":
         return <XCircle className="h-4 w-4" />
       default:
@@ -282,8 +323,6 @@ export default function AdminOrdersPage() {
         return "bg-blue-500/10 text-blue-600 dark:text-blue-400"
       case "shipped":
         return "bg-purple-500/10 text-purple-600 dark:text-purple-400"
-      case "delivered":
-        return "bg-green-500/10 text-green-600 dark:text-green-400"
       case "cancelled":
         return "bg-red-500/10 text-red-600 dark:text-red-400"
       default:
@@ -373,7 +412,6 @@ export default function AdminOrdersPage() {
                 <SelectItem value="confirmed">Confirmed</SelectItem>
                 <SelectItem value="processing">Processing</SelectItem>
                 <SelectItem value="shipped">Shipped</SelectItem>
-                <SelectItem value="delivered">Delivered</SelectItem>
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
@@ -599,19 +637,39 @@ export default function AdminOrdersPage() {
                               <div>
                                 <h4 className="font-medium mb-2 text-foreground">Update Order Status</h4>
                                 <div className="flex flex-wrap gap-2">
-                                  {["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"].map(
-                                    (status) => (
-                                      <Button
-                                        key={status}
-                                        variant={selectedOrder.status === status ? "default" : "outline"}
-                                        size="sm"
-                                        onClick={() => handleStatusUpdate(selectedOrder.id, status as Order["status"])}
-                                        className="flex items-center gap-1"
-                                      >
-                                        {getStatusIcon(status)}
-                                        {status}
-                                      </Button>
-                                    ),
+                                  {["pending", "confirmed", "processing", "shipped", "cancelled"].map(
+                                    (status) => {
+                                      const isCurrentOrderUpdating = isUpdatingStatus[selectedOrder.id]
+                                      const isCurrentStatus = selectedOrder.status === status
+                                      const isButtonDisabled = disabledButtons[selectedOrder.id]?.has(status) || false
+                                      return (
+                                        <Button
+                                          key={status}
+                                          variant={isCurrentStatus ? "default" : "outline"}
+                                          size="sm"
+                                          onClick={() => handleStatusUpdate(selectedOrder.id, status as Order["status"])}
+                                          disabled={isCurrentOrderUpdating || isCurrentStatus || isButtonDisabled}
+                                          className={`flex items-center gap-1 ${(isCurrentOrderUpdating || isButtonDisabled) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        >
+                                          {isCurrentOrderUpdating ? (
+                                            <>
+                                              <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                                              Updating...
+                                            </>
+                                          ) : isButtonDisabled ? (
+                                            <>
+                                              <CheckCircle className="w-3 h-3 mr-1" />
+                                              Used
+                                            </>
+                                          ) : (
+                                            <>
+                                              {getStatusIcon(status)}
+                                              {status}
+                                            </>
+                                          )}
+                                        </Button>
+                                      )
+                                    }
                                   )}
                                 </div>
                               </div>

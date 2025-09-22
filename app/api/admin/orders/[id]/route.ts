@@ -85,7 +85,7 @@ export async function PATCH(
       }
     }
 
-    // Fetch updated order
+    // Fetch updated order with all necessary fields
     const [orders] = await db.execute<Order[]>(
       'SELECT * FROM orders WHERE id = ?',
       [orderId]
@@ -97,18 +97,35 @@ export async function PATCH(
 
     const order = orders[0]
     
+    // Fetch order items
+    const [orderItems] = await db.execute(
+      'SELECT oi.*, p.name as product_name, p.image_url FROM order_items oi LEFT JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?',
+      [orderId]
+    ) as any[]
+    
     // Format the response to match the expected Order interface
     const formattedOrder = {
       id: order.id,
       customerName: order.customer_email,
       customerEmail: order.customer_email,
       customerPhone: order.customer_phone,
-      shippingAddress: order.shipping_address,
-      totalAmount: order.total_amount,
+      shippingAddress: order.shipping_address ? JSON.parse(order.shipping_address) : null,
+      total: order.total_amount,
+      paymentMethod: order.payment_method || '',
+      payment_screenshot: order.payment_screenshot,
+      trackingNumber: order.tracking_number,
       status: order.status,
-      createdAt: order.created_at,
-      updatedAt: order.updated_at,
-      items: [] // Items would need to be fetched separately if needed
+      orderDate: order.created_at,
+      created_at: order.created_at,
+      updated_at: order.updated_at,
+      items: orderItems.map((item: any) => ({
+        name: item.product_name || item.name || 'Unknown Product',
+        quantity: item.quantity,
+        price: item.price,
+        size: item.size,
+        color: item.color,
+        image: item.image_url
+      }))
     }
 
     return NextResponse.json(formattedOrder)
