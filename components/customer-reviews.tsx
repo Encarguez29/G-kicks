@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Star, MessageSquare } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ReviewForm } from "@/components/review-form-modal"
 
 interface CustomerReviewsProps {
@@ -14,17 +14,51 @@ interface CustomerReviewsProps {
 
 interface Review {
   id: number
-  userName: string
+  user_name: string
   rating: number
-  title: string
   comment: string
-  date: string
-  verified: boolean
+  photos: string[]
+  is_verified_purchase: boolean
+  helpful_count: number
+  created_at: string
+  updated_at: string
 }
 
 export function CustomerReviews({ productName, productId }: CustomerReviewsProps) {
   const [reviews, setReviews] = useState<Review[]>([])
   const [showReviewForm, setShowReviewForm] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Fetch reviews from API
+  const fetchReviews = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      
+      console.log('🔍 Fetching reviews for product:', productId)
+      
+      const response = await fetch(`/api/reviews?productId=${productId}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch reviews')
+      }
+
+      console.log('✅ Fetched reviews:', data.reviews.length, 'reviews')
+      setReviews(data.reviews || [])
+    } catch (error) {
+      console.error('❌ Error fetching reviews:', error)
+      setError(error instanceof Error ? error.message : 'Failed to load reviews')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Load reviews on component mount
+  useEffect(() => {
+    fetchReviews()
+  }, [productId])
 
   // Calculate rating statistics
   const totalReviews = reviews.length
@@ -42,28 +76,15 @@ export function CustomerReviews({ productName, productId }: CustomerReviewsProps
     setShowReviewForm(true)
   }
 
-  const handleSubmitReview = (reviewData: {
+  const handleSubmitReview = async (reviewData: {
     rating: number
     comment: string
     userName: string
     email?: string
     photos?: File[]
   }) => {
-    const newReview: Review = {
-      id: Date.now(),
-      userName: reviewData.userName,
-      rating: reviewData.rating,
-      title: "", // Remove title since it's no longer in the form
-      comment: reviewData.comment,
-      date: new Date().toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }),
-      verified: Math.random() > 0.5, // Randomly assign verified status for demo
-    }
-
-    setReviews((prev) => [newReview, ...prev])
+    // Refresh reviews after successful submission
+    await fetchReviews()
     setShowReviewForm(false)
   }
 
@@ -98,6 +119,14 @@ export function CustomerReviews({ productName, productId }: CustomerReviewsProps
     )
   }
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+  }
+
   return (
     <div className="space-y-8">
       <Card className="shadow-lg bg-card border-border">
@@ -120,81 +149,127 @@ export function CustomerReviews({ productName, productId }: CustomerReviewsProps
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Rating Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Overall Rating */}
-            <div className="text-center">
-              <div className="text-4xl font-bold text-gray-900 dark:text-yellow-400 mb-2">
-                {totalReviews > 0 ? averageRating.toFixed(1) : "0.0"}
-              </div>
-              <div className="flex justify-center mb-2">{renderStars(Math.round(averageRating))}</div>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
-                Based on {totalReviews} review{totalReviews !== 1 ? "s" : ""}
-              </p>
-            </div>
-
-            {/* Rating Breakdown */}
-            <div className="space-y-2">
-              {[5, 4, 3, 2, 1].map((stars) => (
-                <div key={stars}>{renderRatingBar(stars, ratingCounts[stars as keyof typeof ratingCounts])}</div>
-              ))}
-            </div>
-          </div>
-
-          <Separator className="bg-gray-200 dark:bg-gray-700" />
-
-          {/* Reviews List */}
-          {totalReviews === 0 ? (
+          {/* Loading State */}
+          {isLoading && (
             <div className="text-center py-8">
-              <MessageSquare className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-gray-400 text-lg mb-2">
-                No reviews yet. Be the first to review this product!
-              </p>
-              <p className="text-gray-400 dark:text-gray-500 text-sm">
-                Help other customers by sharing your experience with {productName}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {reviews.map((review) => (
-                <Card key={review.id} className="border border-border bg-card">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <span className="font-medium text-gray-900 dark:text-white">{review.userName}</span>
-                          {review.verified && (
-                            <span className="bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400 text-xs px-2 py-1 rounded-full">
-                              Verified Purchase
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2 mb-2">
-                          <div className="flex">{renderStars(review.rating)}</div>
-                          <span className="text-sm text-gray-500 dark:text-gray-400">{review.date}</span>
-                        </div>
-                        {review.title && (
-                          <h4 className="font-semibold text-gray-900 dark:text-white mb-2">{review.title}</h4>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{review.comment}</p>
-                  </CardContent>
-                </Card>
-              ))}
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-400 mx-auto mb-4"></div>
+              <p className="text-gray-500 dark:text-gray-400">Loading reviews...</p>
             </div>
           )}
 
-          {/* Load More Reviews Button (if there are many reviews) */}
-          {totalReviews > 5 && (
-            <div className="text-center">
+          {/* Error State */}
+          {error && (
+            <div className="text-center py-8">
+              <MessageSquare className="h-12 w-12 text-red-300 mx-auto mb-4" />
+              <p className="text-red-500 text-lg mb-2">Failed to load reviews</p>
+              <p className="text-gray-400 dark:text-gray-500 text-sm mb-4">{error}</p>
               <Button
+                onClick={fetchReviews}
                 variant="outline"
-                className="border-yellow-400 hover:bg-yellow-400 hover:text-black bg-transparent text-yellow-400 dark:text-yellow-400"
+                className="border-yellow-400 hover:bg-yellow-400 hover:text-black bg-transparent text-yellow-400"
               >
-                Load More Reviews
+                Try Again
               </Button>
             </div>
+          )}
+
+          {/* Content - only show when not loading and no error */}
+          {!isLoading && !error && (
+            <>
+              {/* Rating Overview */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Overall Rating */}
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-gray-900 dark:text-yellow-400 mb-2">
+                    {totalReviews > 0 ? averageRating.toFixed(1) : "0.0"}
+                  </div>
+                  <div className="flex justify-center mb-2">{renderStars(Math.round(averageRating))}</div>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                    Based on {totalReviews} review{totalReviews !== 1 ? "s" : ""}
+                  </p>
+                </div>
+
+                {/* Rating Breakdown */}
+                <div className="space-y-2">
+                  {[5, 4, 3, 2, 1].map((stars) => (
+                    <div key={stars}>{renderRatingBar(stars, ratingCounts[stars as keyof typeof ratingCounts])}</div>
+                  ))}
+                </div>
+              </div>
+
+              <Separator className="bg-gray-200 dark:bg-gray-700" />
+
+              {/* Reviews List */}
+              {totalReviews === 0 ? (
+                <div className="text-center py-8">
+                  <MessageSquare className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400 text-lg mb-2">No reviews yet</p>
+                  <p className="text-gray-400 dark:text-gray-500 text-sm">
+                    Be the first to share your experience with {productName}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {reviews.map((review) => (
+                    <Card key={review.id} className="border border-border bg-card">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <span className="font-medium text-gray-900 dark:text-white">{review.user_name}</span>
+                              {review.is_verified_purchase && (
+                                <span className="bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400 text-xs px-2 py-1 rounded-full">
+                                  Verified Purchase
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2 mb-2">
+                              <div className="flex">{renderStars(review.rating)}</div>
+                              <span className="text-sm text-gray-500 dark:text-gray-400">{formatDate(review.created_at)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{review.comment}</p>
+                        
+                        {/* Review Photos */}
+                        {review.photos && review.photos.length > 0 && (
+                          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {review.photos.map((photo, index) => (
+                              <div key={index} className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
+                                <img
+                                  src={photo}
+                                  alt={`Review photo ${index + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {/* Helpful Count */}
+                        {review.helpful_count > 0 && (
+                          <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                            {review.helpful_count} people found this helpful
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {/* Load More Reviews Button (if there are many reviews) */}
+              {totalReviews > 5 && (
+                <div className="text-center">
+                  <Button
+                    variant="outline"
+                    className="border-yellow-400 hover:bg-yellow-400 hover:text-black bg-transparent text-yellow-400 dark:text-yellow-400"
+                  >
+                    Load More Reviews
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

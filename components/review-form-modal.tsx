@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Star, Upload } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useAuth } from "@/contexts/auth-context"
 
 interface ReviewFormProps {
   productName: string
@@ -24,6 +25,7 @@ interface ReviewFormProps {
 }
 
 export function ReviewForm({ productName, productId, onSubmitReview, onCancel }: ReviewFormProps) {
+  const { user } = useAuth()
   const [rating, setRating] = useState(0)
   const [hoveredRating, setHoveredRating] = useState(0)
   const [comment, setComment] = useState("")
@@ -32,6 +34,19 @@ export function ReviewForm({ productName, productId, onSubmitReview, onCancel }:
   const [photos, setPhotos] = useState<File[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  // Auto-populate name and email from authenticated user
+  useEffect(() => {
+    if (user) {
+      const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim()
+      if (fullName) {
+        setUserName(fullName)
+      }
+      if (user.email) {
+        setEmail(user.email)
+      }
+    }
+  }, [user])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,9 +67,33 @@ export function ReviewForm({ productName, productId, onSubmitReview, onCancel }:
     setIsSubmitting(true)
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      console.log('📝 Submitting review for product:', productId)
       
+      // Submit review to API
+      const response = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productId,
+          rating,
+          comment: comment.trim(),
+          userName: userName.trim(),
+          email: email.trim() || undefined,
+          photos: [], // TODO: Handle photo upload to cloud storage
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit review')
+      }
+
+      console.log('✅ Review submitted successfully:', data)
+      
+      // Call the parent callback to refresh reviews
       onSubmitReview({
         rating,
         comment: comment.trim(),
@@ -66,13 +105,16 @@ export function ReviewForm({ productName, productId, onSubmitReview, onCancel }:
       // Reset form
       setRating(0)
       setComment("")
-      setUserName("")
-      setEmail("")
+      if (!user) {
+        setUserName("")
+        setEmail("")
+      }
       setPhotos([])
       
       alert("Thank you for your review! It has been submitted successfully.")
     } catch (error) {
-      setErrors({ submit: "Failed to submit review. Please try again." })
+      console.error('❌ Error submitting review:', error)
+      setErrors({ submit: error instanceof Error ? error.message : "Failed to submit review. Please try again." })
     } finally {
       setIsSubmitting(false)
     }
@@ -156,9 +198,9 @@ export function ReviewForm({ productName, productId, onSubmitReview, onCancel }:
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Name and Email Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 h-5">
                 Name <span className="text-red-500">*</span>
               </label>
               <Input
@@ -166,13 +208,14 @@ export function ReviewForm({ productName, productId, onSubmitReview, onCancel }:
                 placeholder="Your name"
                 value={userName}
                 onChange={(e) => setUserName(e.target.value)}
-                className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-300 placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                readOnly={!!user}
+                className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-300 placeholder:text-gray-500 dark:placeholder:text-gray-400 read-only:bg-gray-100 dark:read-only:bg-gray-800 read-only:cursor-not-allowed"
               />
               {errors.userName && <p className="text-red-500 text-sm mt-1">{errors.userName}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 h-5">
                 Email (optional)
               </label>
               <Input
@@ -180,7 +223,8 @@ export function ReviewForm({ productName, productId, onSubmitReview, onCancel }:
                 placeholder="your.email@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-300 placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                readOnly={!!user}
+                className="w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-300 placeholder:text-gray-500 dark:placeholder:text-gray-400 read-only:bg-gray-100 dark:read-only:bg-gray-800 read-only:cursor-not-allowed"
               />
               {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
             </div>

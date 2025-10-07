@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
+import { LocationSelector } from "@/components/ui/location-selector"
 import {
   Camera,
   MapPin,
@@ -38,6 +39,7 @@ interface Address {
   state: string
   postal_code: string
   country: string
+  shipping_region?: string
   is_default: boolean
 }
 
@@ -89,6 +91,7 @@ export default function ProfilePage() {
     state_province: "",
     zip_code: "",
     country: "Philippines",
+    shipping_region: "Luzon",
     is_default: false,
   })
 
@@ -269,6 +272,7 @@ export default function ProfilePage() {
           state_province: firstAddress.state || "",
           zip_code: firstAddress.postal_code || "",
           country: firstAddress.country || "Philippines",
+          shipping_region: firstAddress.shipping_region || "Luzon",
           is_default: firstAddress.is_default || false,
         })
       }
@@ -461,6 +465,7 @@ export default function ProfilePage() {
         state: addressData.state_province.trim(),
         postal_code: addressData.zip_code.trim(),
         country: addressData.country,
+        shipping_region: addressData.shipping_region,
         first_name: profileData.first_name.trim() || user?.firstName || 'User',
         last_name: profileData.last_name.trim() || user?.lastName || 'Name',
         phone: profileData.phone.trim() || '',
@@ -557,6 +562,7 @@ export default function ProfilePage() {
           state_province: "",
           zip_code: "",
           country: "Philippines",
+          shipping_region: "Luzon",
           is_default: false,
         })
       }
@@ -579,6 +585,7 @@ export default function ProfilePage() {
       state_province: "",
       zip_code: "",
       country: "Philippines",
+      shipping_region: "Luzon",
       is_default: false,
     })
   }
@@ -591,6 +598,7 @@ export default function ProfilePage() {
       state_province: address.state || "",
       zip_code: address.postal_code || "",
       country: address.country || "Philippines",
+      shipping_region: address.shipping_region || "Luzon",
       is_default: address.is_default || false,
     })
   }
@@ -874,29 +882,52 @@ export default function ProfilePage() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="city">
-                            City
-                          </Label>
-                          <Input
-                            id="city"
-                            value={addressData.city}
-                            onChange={(e) => setAddressData((prev) => ({ ...prev, city: e.target.value }))}
-                            placeholder="Cabuyao City"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="stateProvince">
-                            State/Province
-                          </Label>
-                          <Input
-                            id="stateProvince"
-                            value={addressData.state_province}
-                            onChange={(e) => setAddressData((prev) => ({ ...prev, state_province: e.target.value }))}
-                            placeholder="Metro Manila"
-                          />
-                        </div>
+                      <LocationSelector
+                        selectedProvince={addressData.state_province}
+                        selectedCity={addressData.city}
+                        onProvinceChange={(province) => {
+                          // Determine shipping region based on province
+                          const getShippingRegionByProvince = (province: string): 'Luzon' | 'Visayas/Mindanao' => {
+                            const luzonProvinces = [
+                              'Metro Manila', 'Abra', 'Apayao', 'Benguet', 'Ifugao', 'Kalinga', 'Mountain Province',
+                              'Ilocos Norte', 'Ilocos Sur', 'La Union', 'Pangasinan', 'Batanes', 'Cagayan', 'Isabela',
+                              'Nueva Vizcaya', 'Quirino', 'Aurora', 'Bataan', 'Bulacan', 'Nueva Ecija', 'Pampanga',
+                              'Tarlac', 'Zambales', 'Batangas', 'Cavite', 'Laguna', 'Quezon', 'Rizal', 'Marinduque',
+                              'Occidental Mindoro', 'Oriental Mindoro', 'Palawan', 'Romblon', 'Albay', 'Camarines Norte',
+                              'Camarines Sur', 'Catanduanes', 'Masbate', 'Sorsogon'
+                            ]
+                            return luzonProvinces.includes(province) ? 'Luzon' : 'Visayas/Mindanao'
+                          }
+                          
+                          const shippingRegion = getShippingRegionByProvince(province)
+                          setAddressData((prev) => ({ 
+                            ...prev, 
+                            state_province: province,
+                            shipping_region: shippingRegion
+                          }))
+                        }}
+                        onCityChange={(city) => setAddressData((prev) => ({ ...prev, city }))}
+                        required
+                      />
+
+                      <div className="space-y-2">
+                        <Label htmlFor="shippingRegion">
+                          Shipping Region
+                        </Label>
+                        <Select
+                          value={addressData.shipping_region}
+                          onValueChange={(value: 'Luzon' | 'Visayas/Mindanao') => 
+                            setAddressData((prev) => ({ ...prev, shipping_region: value }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select shipping region" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Luzon">Luzon</SelectItem>
+                            <SelectItem value="Visayas/Mindanao">Visayas/Mindanao</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -915,104 +946,12 @@ export default function ProfilePage() {
                           <Label htmlFor="country">
                             Country
                           </Label>
-                          <Select
-                            value={addressData.country}
-                            onValueChange={(value) => setAddressData((prev) => ({ ...prev, country: value }))}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Afghanistan">Afghanistan</SelectItem>
-                              <SelectItem value="Albania">Albania</SelectItem>
-                              <SelectItem value="Algeria">Algeria</SelectItem>
-                              <SelectItem value="Argentina">Argentina</SelectItem>
-                              <SelectItem value="Armenia">Armenia</SelectItem>
-                              <SelectItem value="Australia">Australia</SelectItem>
-                              <SelectItem value="Austria">Austria</SelectItem>
-                              <SelectItem value="Azerbaijan">Azerbaijan</SelectItem>
-                              <SelectItem value="Bahrain">Bahrain</SelectItem>
-                              <SelectItem value="Bangladesh">Bangladesh</SelectItem>
-                              <SelectItem value="Belarus">Belarus</SelectItem>
-                              <SelectItem value="Belgium">Belgium</SelectItem>
-                              <SelectItem value="Bolivia">Bolivia</SelectItem>
-                              <SelectItem value="Bosnia and Herzegovina">Bosnia and Herzegovina</SelectItem>
-                              <SelectItem value="Brazil">Brazil</SelectItem>
-                              <SelectItem value="Bulgaria">Bulgaria</SelectItem>
-                              <SelectItem value="Cambodia">Cambodia</SelectItem>
-                              <SelectItem value="Canada">Canada</SelectItem>
-                              <SelectItem value="Chile">Chile</SelectItem>
-                              <SelectItem value="China">China</SelectItem>
-                              <SelectItem value="Colombia">Colombia</SelectItem>
-                              <SelectItem value="Croatia">Croatia</SelectItem>
-                              <SelectItem value="Czech Republic">Czech Republic</SelectItem>
-                              <SelectItem value="Denmark">Denmark</SelectItem>
-                              <SelectItem value="Ecuador">Ecuador</SelectItem>
-                              <SelectItem value="Egypt">Egypt</SelectItem>
-                              <SelectItem value="Estonia">Estonia</SelectItem>
-                              <SelectItem value="Ethiopia">Ethiopia</SelectItem>
-                              <SelectItem value="Finland">Finland</SelectItem>
-                              <SelectItem value="France">France</SelectItem>
-                              <SelectItem value="Georgia">Georgia</SelectItem>
-                              <SelectItem value="Germany">Germany</SelectItem>
-                              <SelectItem value="Ghana">Ghana</SelectItem>
-                              <SelectItem value="Greece">Greece</SelectItem>
-                              <SelectItem value="Hungary">Hungary</SelectItem>
-                              <SelectItem value="Iceland">Iceland</SelectItem>
-                              <SelectItem value="India">India</SelectItem>
-                              <SelectItem value="Indonesia">Indonesia</SelectItem>
-                              <SelectItem value="Iran">Iran</SelectItem>
-                              <SelectItem value="Iraq">Iraq</SelectItem>
-                              <SelectItem value="Ireland">Ireland</SelectItem>
-                              <SelectItem value="Israel">Israel</SelectItem>
-                              <SelectItem value="Italy">Italy</SelectItem>
-                              <SelectItem value="Japan">Japan</SelectItem>
-                              <SelectItem value="Jordan">Jordan</SelectItem>
-                              <SelectItem value="Kazakhstan">Kazakhstan</SelectItem>
-                              <SelectItem value="Kenya">Kenya</SelectItem>
-                              <SelectItem value="Kuwait">Kuwait</SelectItem>
-                              <SelectItem value="Latvia">Latvia</SelectItem>
-                              <SelectItem value="Lebanon">Lebanon</SelectItem>
-                              <SelectItem value="Lithuania">Lithuania</SelectItem>
-                              <SelectItem value="Luxembourg">Luxembourg</SelectItem>
-                              <SelectItem value="Malaysia">Malaysia</SelectItem>
-                              <SelectItem value="Mexico">Mexico</SelectItem>
-                              <SelectItem value="Morocco">Morocco</SelectItem>
-                              <SelectItem value="Netherlands">Netherlands</SelectItem>
-                              <SelectItem value="New Zealand">New Zealand</SelectItem>
-                              <SelectItem value="Nigeria">Nigeria</SelectItem>
-                              <SelectItem value="Norway">Norway</SelectItem>
-                              <SelectItem value="Pakistan">Pakistan</SelectItem>
-                              <SelectItem value="Peru">Peru</SelectItem>
-                              <SelectItem value="Philippines">Philippines</SelectItem>
-                              <SelectItem value="Poland">Poland</SelectItem>
-                              <SelectItem value="Portugal">Portugal</SelectItem>
-                              <SelectItem value="Qatar">Qatar</SelectItem>
-                              <SelectItem value="Romania">Romania</SelectItem>
-                              <SelectItem value="Russia">Russia</SelectItem>
-                              <SelectItem value="Saudi Arabia">Saudi Arabia</SelectItem>
-                              <SelectItem value="Serbia">Serbia</SelectItem>
-                              <SelectItem value="Singapore">Singapore</SelectItem>
-                              <SelectItem value="Slovakia">Slovakia</SelectItem>
-                              <SelectItem value="Slovenia">Slovenia</SelectItem>
-                              <SelectItem value="South Africa">South Africa</SelectItem>
-                              <SelectItem value="South Korea">South Korea</SelectItem>
-                              <SelectItem value="Spain">Spain</SelectItem>
-                              <SelectItem value="Sri Lanka">Sri Lanka</SelectItem>
-                              <SelectItem value="Sweden">Sweden</SelectItem>
-                              <SelectItem value="Switzerland">Switzerland</SelectItem>
-                              <SelectItem value="Taiwan">Taiwan</SelectItem>
-                              <SelectItem value="Thailand">Thailand</SelectItem>
-                              <SelectItem value="Turkey">Turkey</SelectItem>
-                              <SelectItem value="Ukraine">Ukraine</SelectItem>
-                              <SelectItem value="United Arab Emirates">United Arab Emirates</SelectItem>
-                              <SelectItem value="United Kingdom">United Kingdom</SelectItem>
-                              <SelectItem value="United States">United States</SelectItem>
-                              <SelectItem value="Uruguay">Uruguay</SelectItem>
-                              <SelectItem value="Venezuela">Venezuela</SelectItem>
-                              <SelectItem value="Vietnam">Vietnam</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <Input
+                            id="country"
+                            value="Philippines"
+                            readOnly
+                            className="bg-gray-100 dark:bg-gray-600 cursor-not-allowed"
+                          />
                         </div>
                       </div>
 

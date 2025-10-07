@@ -140,17 +140,24 @@ export function AdminNotifications() {
     if (orderIds.length === 0) return
     
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('jwt_token') : null
       const response = await fetch('/api/admin/notifications/mark-viewed', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({ orderIds })
       })
       
       if (response.ok) {
         console.log(`✅ Marked ${orderIds.length} notifications as viewed`)
-        // Refresh notifications to update count
+        // Optimistically update UI count and list
+        setNotifications(prev => ({
+          newOrdersCount: Math.max(0, prev.newOrdersCount - orderIds.length),
+          recentOrders: prev.recentOrders.filter(o => !orderIds.includes(o.id))
+        }))
+        // Refresh notifications to ensure sync with server
         fetchNotifications()
       }
     } catch (error) {

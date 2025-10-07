@@ -1,68 +1,44 @@
-require('dotenv').config({ path: '.env.production' });
 const mysql = require('mysql2/promise');
 
-// Test the exact same configuration as the Next.js app
-const dbConfig = {
-  host: process.env.MYSQL_HOST || 'localhost',
-  port: parseInt(process.env.MYSQL_PORT || '3306'),
-  user: process.env.MYSQL_USER || 'root',
-  password: process.env.MYSQL_PASSWORD || '',
-  database: process.env.MYSQL_DATABASE || 'gkicks',
-  ssl: process.env.MYSQL_SSL === 'true' ? {
-    rejectUnauthorized: false
-  } : undefined,
-  connectionLimit: 10,
-};
+async function testDatabaseConnection() {
+  const dbConfig = {
+    host: 'localhost',
+    port: 3306,
+    user: 'root',
+    password: '',
+    database: 'gkicks',
+    ssl: false,
+  };
 
-// Create connection pool
-const pool = mysql.createPool(dbConfig);
-
-// Execute query function (same as in Next.js app)
-async function executeQuery(query, params = []) {
   try {
-    const [results] = await pool.execute(query, params);
-    return results;
+    console.log('🔍 Testing database connection...');
+    console.log('Config:', dbConfig);
+    
+    const connection = await mysql.createConnection(dbConfig);
+    console.log('✅ Database connected successfully');
+    
+    // Test a simple query
+    const [rows] = await connection.execute('SELECT 1 as test');
+    console.log('✅ Test query successful:', rows);
+    
+    // Check if orders table exists
+    const [tables] = await connection.execute('SHOW TABLES LIKE "orders"');
+    console.log('📋 Orders table exists:', tables.length > 0);
+    
+    if (tables.length > 0) {
+      // Check orders table structure
+      const [columns] = await connection.execute('DESCRIBE orders');
+      console.log('📋 Orders table structure:', columns);
+    }
+    
+    await connection.end();
+    console.log('✅ Connection closed successfully');
+    
   } catch (error) {
-    console.error('❌ MySQL query failed:', error);
-    throw error;
+    console.error('❌ Database connection failed:', error);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Error message:', error.message);
   }
 }
 
-async function testDatabaseOperations() {
-  try {
-    console.log('🔍 Testing database operations...');
-    console.log('📋 Database config:', {
-      host: dbConfig.host,
-      port: dbConfig.port,
-      user: dbConfig.user,
-      database: dbConfig.database,
-      passwordSet: !!dbConfig.password
-    });
-    
-    // Test connection
-    const connection = await pool.getConnection();
-    console.log('✅ Database connection successful');
-    connection.release();
-    
-    // Test basic query
-    const result = await executeQuery('SELECT 1 as test');
-    console.log('✅ Basic query successful:', result);
-    
-    // Test users table query
-    const users = await executeQuery('SELECT COUNT(*) as count FROM users');
-    console.log('✅ Users table query successful:', users);
-    
-    // Test email verification tokens table
-    const tokens = await executeQuery('SELECT COUNT(*) as count FROM email_verification_tokens');
-    console.log('✅ Email verification tokens table query successful:', tokens);
-    
-    console.log('🎉 All database operations successful!');
-    
-  } catch (error) {
-    console.error('❌ Database test failed:', error);
-  } finally {
-    await pool.end();
-  }
-}
-
-testDatabaseOperations();
+testDatabaseConnection();

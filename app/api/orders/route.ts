@@ -16,6 +16,18 @@ async function getUserFromToken(request: NextRequest) {
     }
 
     const token = authHeader.substring(7)
+    
+    if (!token || token.trim() === '') {
+      console.log('🚫 ORDERS: Empty token provided')
+      return null
+    }
+    
+    // Check if JWT_SECRET is available
+    if (!JWT_SECRET) {
+      console.error('❌ ORDERS: JWT_SECRET is not configured')
+      return null
+    }
+    
     console.log('🔍 ORDERS: Token received:', token.substring(0, 50) + '...')
     console.log('🔍 ORDERS: Token length:', token.length)
     console.log('🔍 ORDERS: Token parts:', token.split('.').length)
@@ -26,6 +38,7 @@ async function getUserFromToken(request: NextRequest) {
   } catch (error) {
     console.error('❌ ORDERS: Token verification failed:', error)
     console.error('❌ ORDERS: Token that failed:', authHeader?.substring(7, 57) + '...')
+    console.error('❌ ORDERS: JWT_SECRET exists:', !!JWT_SECRET)
     return null
   }
 }
@@ -127,11 +140,14 @@ export async function POST(request: NextRequest) {
     // Get user from JWT token
     const user = await getUserFromToken(request)
     if (!user) {
+      console.error('❌ API: Unauthorized access attempt - no valid token')
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized', message: 'Please sign in to create an order' },
         { status: 401 }
       )
     }
+
+    console.log('✅ API: Authenticated user:', user.id, user.email)
 
     const body = await request.json()
     const {
@@ -146,6 +162,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!items || !Array.isArray(items) || items.length === 0) {
+      console.error('❌ API: Missing or invalid items')
       return NextResponse.json(
         { error: 'Order items are required' },
         { status: 400 }
@@ -153,6 +170,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!total || !customer_email) {
+      console.error('❌ API: Missing total or customer_email')
       return NextResponse.json(
         { error: 'Total amount and customer email are required' },
         { status: 400 }
@@ -337,7 +355,8 @@ export async function POST(request: NextRequest) {
           city: shipping_address?.city || '',
           state: shipping_address?.state || '',
           postalCode: shipping_address?.postalCode || '',
-          country: shipping_address?.country || 'Philippines'
+          country: shipping_address?.country || 'Philippines',
+          shipping_region: shipping_address?.shipping_region || 'Luzon'
         },
         orderDate: new Date().toLocaleDateString('en-US', {
           year: 'numeric',
@@ -397,8 +416,17 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ API: Error creating order:', error)
+    console.error('❌ API: Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    console.error('❌ API: Error message:', error instanceof Error ? error.message : String(error))
+    
+    // Return more specific error information
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error', 
+        message: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? String(error) : undefined
+      },
       { status: 500 }
     )
   }
