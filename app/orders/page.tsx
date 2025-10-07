@@ -300,6 +300,9 @@ export default function OrdersPage() {
                           {order.shippingAddress.city || "-"}, {order.shippingAddress.postalCode || "-"}
                         </p>
                         <p>{order.shippingAddress.country || "-"}</p>
+                        {order.shippingAddress.shipping_region && (
+                          <p>Shipping Region: {order.shippingAddress.shipping_region}</p>
+                        )}
                       </div>
                     </div>
 
@@ -452,6 +455,9 @@ export default function OrdersPage() {
                         {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.province || selectedOrder.shippingAddress.state} {selectedOrder.shippingAddress.postalCode || selectedOrder.shippingAddress.zipCode}
                       </p>
                       <p>{selectedOrder.shippingAddress.country || 'Philippines'}</p>
+                      {selectedOrder.shippingAddress.shipping_region && (
+                        <p>Shipping Region: {selectedOrder.shippingAddress.shipping_region}</p>
+                      )}
                       {selectedOrder.shippingAddress.phone && (
                         <p>Phone: {selectedOrder.shippingAddress.phone}</p>
                       )}

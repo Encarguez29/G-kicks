@@ -32,10 +32,15 @@ export async function testConnection() {
 // Execute query function
 export async function executeQuery(query: string, params: (string | number | boolean | null)[] = []): Promise<any> {
   try {
+    console.log('🔍 DB: Executing query:', query.substring(0, 100) + '...')
+    console.log('🔍 DB: Query params:', params)
     const [results] = await pool.execute(query, params);
+    console.log('✅ DB: Query executed successfully, rows affected:', Array.isArray(results) ? results.length : 'N/A')
     return results;
   } catch (error) {
-    console.error('❌ MySQL query failed:', error);
+    console.error('❌ DB: MySQL query failed:', error);
+    console.error('❌ DB: Failed query:', query);
+    console.error('❌ DB: Failed params:', params);
     throw error;
   }
 }

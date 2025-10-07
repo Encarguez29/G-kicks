@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { ReviewForm } from "@/components/review-form-modal"
 import { ThreeDProductViewer } from "@/components/3d-product-viewer-simple"
+import { CustomerReviews } from "@/components/customer-reviews"
 
 import type { Product } from "@/lib/product-data"
 
@@ -667,93 +668,16 @@ export default function ProductPage() {
             </div>
           </div>
 
-          {/* Customer Reviews Section */}
-          <div className="mt-12 sm:mt-16">
-            <Card className="shadow-lg bg-card border-border">
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-                  <div>
-                    <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-yellow-400">
-                      Customer Reviews
-                    </CardTitle>
-                    <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">
-                      Share your experience with {product.name}
-                    </p>
-                  </div>
-                  <Button
-                    className="bg-yellow-400 text-black hover:bg-yellow-500 shadow-lg hover:shadow-xl transition-all duration-300 w-full sm:w-auto min-h-[44px]"
-                    onClick={handleWriteReview}
-                    disabled={authLoading}
-                  >
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    {authLoading ? "Loading..." : "Write a Review"}
-                  </Button>
-                </div>
-              </CardHeader>
 
-              <CardContent className="space-y-6 sm:space-y-8">
-                {/* Rating Overview */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-                  {/* Overall Rating */}
-                  <div className="text-center">
-                    <div className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-yellow-400 mb-2">
-                      {averageRating.toFixed(1)}
-                    </div>
-                    <div className="flex justify-center mb-2">{renderStars(Math.round(averageRating))}</div>
-                    <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
-                      Based on {totalReviews} review{totalReviews !== 1 ? "s" : ""}
-                    </p>
-                  </div>
-
-                  {/* Rating Breakdown */}
-                  <div className="space-y-2 sm:space-y-3">
-                    {[5, 4, 3, 2, 1].map((stars) => (
-                      <div key={stars}>{renderRatingBar(stars, ratingCounts[stars as keyof typeof ratingCounts])}</div>
-                    ))}
-                  </div>
-                </div>
-
-                <Separator className="bg-border" />
-
-                {/* No Reviews Message */}
-                {totalReviews === 0 && (
-                  <div className="text-center py-8 sm:py-12">
-                    <div className="mb-4">
-                      <div className="flex justify-center mb-2">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star key={star} className="w-5 h-5 sm:w-6 sm:h-6 text-gray-300 dark:text-gray-600" />
-                        ))}
-                      </div>
-                      <p className="text-lg font-semibold text-gray-600 dark:text-gray-400">No reviews yet</p>
-                    </div>
-                    <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 mb-6">
-                      Be the first to share your experience with this product
-                    </p>
-                    <Button
-                      className="bg-yellow-400 text-black hover:bg-yellow-500 w-full sm:w-auto min-h-[44px]"
-                      onClick={handleWriteReview}
-                      disabled={authLoading}
-                    >
-                      {authLoading ? "Loading..." : "Write the First Review"}
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Review Form */}
-          {showReviewForm && (
-            <div className="mt-6 sm:mt-8">
-              <ReviewForm
-                productName={product.name}
-                productId={productId}
-                onSubmitReview={handleSubmitReview}
-                onCancel={handleCancelReview}
-              />
-            </div>
-          )}
         </div>
+      </div>
+
+      {/* Customer Reviews Section */}
+      <div className="mt-8 sm:mt-12">
+        <CustomerReviews 
+          productName={memoizedProduct.name}
+          productId={productId}
+        />
       </div>
 
       {/* Login Required Modal */}

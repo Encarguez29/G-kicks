@@ -34,6 +34,7 @@ interface OrderEmailData {
     state: string;
     postalCode: string;
     country: string;
+    shipping_region?: string;
   };
   orderDate: string;
 }
@@ -175,6 +176,7 @@ function generateOrderReceiptHTML(orderData: OrderEmailData): string {
           <div>${orderData.shippingAddress.address}</div>
           <div>${orderData.shippingAddress.city}, ${orderData.shippingAddress.state} ${orderData.shippingAddress.postalCode}</div>
           <div>${orderData.shippingAddress.country}</div>
+          ${orderData.shippingAddress.shipping_region ? `<div>Shipping Region: ${orderData.shippingAddress.shipping_region}</div>` : ''}
         </div>
       </div>
 

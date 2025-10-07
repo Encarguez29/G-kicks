@@ -15,8 +15,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Smartphone, User, CheckCircle, Receipt, Upload } from "lucide-react"
+import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Smartphone, User, CheckCircle, Receipt, Upload, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { LocationSelector } from "@/components/ui/location-selector"
+import { getRecommendedBagSize, getAllBagSpecifications, getBagSpecificationBySize } from "@/lib/bag-specifications"
 import Image from "next/image"
 
 export default function CartPage() {
@@ -56,6 +58,58 @@ export default function CartPage() {
   const [paymentScreenshot, setPaymentScreenshot] = useState<string | null>(null)
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null)
   const [termsAccepted, setTermsAccepted] = useState(false)
+  const [selectedBagSize, setSelectedBagSize] = useState<'Small' | 'Medium' | 'Large'>('Small')
+  const [shippingLocation, setShippingLocation] = useState<'Luzon' | 'Visayas/Mindanao'>('Luzon')
+  const [calculatedShipping, setCalculatedShipping] = useState(0)
+
+  // Helper function to determine shipping region based on province
+  const getShippingRegionByProvince = (province: string): 'Luzon' | 'Visayas/Mindanao' => {
+    // Luzon provinces
+    const luzonProvinces = [
+      'Metro Manila', 'Abra', 'Apayao', 'Benguet', 'Ifugao', 'Kalinga', 'Mountain Province',
+      'Ilocos Norte', 'Ilocos Sur', 'La Union', 'Pangasinan', 'Batanes', 'Cagayan', 'Isabela',
+      'Nueva Vizcaya', 'Quirino', 'Aurora', 'Bataan', 'Bulacan', 'Nueva Ecija', 'Pampanga',
+      'Tarlac', 'Zambales', 'Batangas', 'Cavite', 'Laguna', 'Quezon', 'Rizal', 'Marinduque',
+      'Occidental Mindoro', 'Oriental Mindoro', 'Palawan', 'Romblon', 'Albay', 'Camarines Norte',
+      'Camarines Sur', 'Catanduanes', 'Masbate', 'Sorsogon'
+    ]
+    
+    return luzonProvinces.includes(province) ? 'Luzon' : 'Visayas/Mindanao'
+  }
+
+  // Auto-adjust bag size based on total quantity
+  useEffect(() => {
+    const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+    
+    // Auto-select appropriate bag size based on quantity
+    if (totalQuantity <= 3) {
+      setSelectedBagSize('Small')
+    } else if (totalQuantity <= 6) {
+      setSelectedBagSize('Medium')
+    } else if (totalQuantity <= 10) {
+      setSelectedBagSize('Large')
+    }
+    // For quantities > 10, keep current selection but disable checkout
+  }, [items])
+
+  // Calculate shipping whenever bag size or location changes
+  useEffect(() => {
+    let shipping = 0
+    if (selectedBagSize === 'Small') {
+      shipping = 70
+    } else if (selectedBagSize === 'Medium') {
+      shipping = 160
+    } else if (selectedBagSize === 'Large') {
+      shipping = 190
+    }
+    
+    // Add ₱25 surcharge for Visayas/Mindanao
+    if (shippingLocation === 'Visayas/Mindanao') {
+      shipping += 25
+    }
+    
+    setCalculatedShipping(shipping)
+  }, [selectedBagSize, shippingLocation])
 
   useEffect(() => {
     async function loadUserProfileAndAddress() {
@@ -111,6 +165,17 @@ export default function CartPage() {
         
         console.log('📋 CART: Setting shipping info:', newShippingInfo)
         setShippingInfo(newShippingInfo)
+        
+        // Set shipping region from saved address if available
+        if (addressData?.shipping_region) {
+          console.log('🌍 CART: Setting shipping region from address:', addressData.shipping_region)
+          setShippingLocation(addressData.shipping_region as 'Luzon' | 'Visayas/Mindanao')
+        } else if (addressData?.state) {
+          // Fallback: auto-detect from province if shipping_region not available
+          const region = getShippingRegionByProvince(addressData.state)
+          console.log('🌍 CART: Auto-detecting shipping region from province:', addressData.state, '->', region)
+          setShippingLocation(region)
+        }
       } catch (error) {
         console.error("Error loading user data:", error)
       }
@@ -250,10 +315,32 @@ export default function CartPage() {
       return
     }
 
+    // Check authentication before proceeding
+    const token = localStorage.getItem('auth_token')
+    if (!token) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to complete your order. Redirecting to login...",
+        variant: "destructive",
+      })
+      router.push('/auth/signin')
+      return
+    }
+
+    // Verify token is still valid before checkout
+    if (!user || !tokenReady) {
+      toast({
+        title: "Authentication Error",
+        description: "Your session has expired. Please sign in again.",
+        variant: "destructive",
+      })
+      router.push('/auth/signin')
+      return
+    }
+
     setIsProcessing(true)
 
     try {
-      const token = localStorage.getItem('auth_token')
       
       if (user && token) {
         const [firstName, ...lastNameParts] = shippingInfo.fullName.split(" ")
@@ -308,6 +395,7 @@ export default function CartPage() {
                first_name: firstName || 'Customer',
                last_name: lastName || 'Name',
                phone: shippingInfo.phone,
+               shipping_region: shippingLocation,
              })
            })
 
@@ -332,6 +420,7 @@ export default function CartPage() {
               last_name: lastName || 'Name',
               phone: shippingInfo.phone,
               is_default: true,
+              shipping_region: shippingLocation,
             })
           })
 
@@ -344,8 +433,17 @@ export default function CartPage() {
       // Calculate totals
       const subtotal = items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0)
       const vat = subtotal * 0.12 // 12% VAT in Philippines
-      const shipping = subtotal > 2000 ? 0 : 150 // Free shipping over ₱2000
+      
+      // Use calculated shipping from state
+      const shipping = calculatedShipping
+      
       const total = subtotal + vat + shipping
+
+      // Calculate total quantity of items
+      const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+
+      // Calculate recommended bag size
+      const recommendedBag = getRecommendedBagSize(items.length)
 
       // Use payment screenshot URL directly
       const paymentScreenshotData = paymentScreenshot || null
@@ -377,11 +475,31 @@ export default function CartPage() {
       })
 
       if (!orderResponse.ok) {
-        const errorData = await orderResponse.json()
+        const errorData = await orderResponse.json().catch(() => ({ error: 'Unknown error' }))
+        
+        // Handle specific error cases
+        if (orderResponse.status === 401) {
+          toast({
+            title: "Authentication Error",
+            description: "Your session has expired. Please sign in again.",
+            variant: "destructive",
+          })
+          router.push('/auth/signin')
+          return
+        }
+        
         if (errorData.error === 'Insufficient stock') {
           throw new Error(errorData.message || 'Some items are out of stock')
         }
-        throw new Error(errorData.message || 'Failed to create order')
+        
+        // Log detailed error for debugging
+        console.error('Order creation failed:', {
+          status: orderResponse.status,
+          statusText: orderResponse.statusText,
+          error: errorData
+        })
+        
+        throw new Error(errorData.message || `Failed to create order (${orderResponse.status})`)
       }
 
       const orderData = await orderResponse.json()
@@ -430,8 +548,17 @@ export default function CartPage() {
   // Calculate totals for display
   const subtotal = items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0)
   const vat = subtotal * 0.12 // 12% VAT in Philippines
-  const shipping = subtotal > 2000 ? 0 : 150 // Free shipping over ₱2000
+  
+  // Use calculated shipping from state
+  const shipping = calculatedShipping
+  
   const total = subtotal + vat + shipping
+
+  // Calculate total quantity of items for display
+  const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+
+  // Calculate recommended bag size for display
+  const recommendedBag = getRecommendedBagSize(items.length)
 
   if (items.length === 0 && !showOrderSuccess) {
     return (
@@ -573,16 +700,68 @@ export default function CartPage() {
                   <span className="text-gray-900 dark:text-white">₱{vat.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm sm:text-base">
-                  <span className="text-gray-600 dark:text-gray-400">Shipping:</span>
+                  <span className="text-gray-600 dark:text-gray-400">Shipping (J&T):</span>
                   <span className="text-gray-900 dark:text-white">
-                    {shipping === 0 ? "Free" : `₱${shipping.toLocaleString()}`}
+                    ₱{shipping.toLocaleString()}
                   </span>
                 </div>
-                {shipping === 0 && (
-                  <div className="text-xs sm:text-sm text-green-600 dark:text-green-400">
-                    🎉 You qualify for free shipping!
+                
+                {/* Bag Specifications */}
+                <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Bag Specifications</span>
+                  </div>
+                  
+                  <div className="mb-3">
+                    <Select value={selectedBagSize} onValueChange={(value: 'Small' | 'Medium' | 'Large') => setSelectedBagSize(value)}>
+                      <SelectTrigger className="w-full h-10 bg-white dark:bg-gray-600 border-gray-200 dark:border-gray-500">
+                        <SelectValue placeholder="Select bag size" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Small" disabled={totalQuantity > 3}>
+                          Small (1-3 items) {totalQuantity > 3 && "(Unavailable)"}
+                        </SelectItem>
+                        <SelectItem value="Medium" disabled={totalQuantity > 6}>
+                          Medium (4-6 items) {totalQuantity > 6 && "(Unavailable)"}
+                        </SelectItem>
+                        <SelectItem value="Large" disabled={totalQuantity > 10}>
+                          Large (7-10 items) {totalQuantity > 10 && "(Unavailable)"}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {(() => {
+                    const selectedBag = getBagSpecificationBySize(selectedBagSize);
+                    return (
+                      <>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                          {selectedBag?.description || "No description available."}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-500">
+                          Max weight: {selectedBag?.maxWeight}kg |
+                          Dimensions: {selectedBag?.dimensions?.length}×{selectedBag?.dimensions?.width}×{selectedBag?.dimensions?.height}cm
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+                
+                {/* Customer Service Message for quantities over 10 */}
+                {totalQuantity > 10 && (
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 rounded-lg mb-3">
+                    <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
+                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-sm font-medium">Contact Customer Service</span>
+                    </div>
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                      Your order has {totalQuantity} items. Please contact customer service for orders with more than 10 items.
+                    </p>
                   </div>
                 )}
+                
                 <Separator className="bg-gray-200 dark:bg-gray-700" />
                 <div className="flex justify-between font-semibold text-base sm:text-lg">
                   <span className="text-gray-900 dark:text-yellow-400">Total:</span>
@@ -592,6 +771,7 @@ export default function CartPage() {
                   onClick={() => setShowCheckout(!showCheckout)}
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                   size="lg"
+                  disabled={totalQuantity > 10}
                 >
                   {showCheckout ? "Hide Checkout" : "Proceed to Checkout"}
                 </Button>
@@ -714,10 +894,8 @@ export default function CartPage() {
                         <Input
                           id="fullName"
                           value={shippingInfo.fullName}
-                          onChange={(e) => setShippingInfo({ ...shippingInfo, fullName: e.target.value })}
-                          placeholder="Enter your full name"
-                          required
-                          className="h-10 sm:h-12 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                          readOnly
+                          className="h-10 sm:h-12 bg-gray-100 dark:bg-gray-600 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white cursor-not-allowed"
                         />
                       </div>
                       <div>
@@ -727,10 +905,8 @@ export default function CartPage() {
                         <Input
                           id="phone"
                           value={shippingInfo.phone}
-                          onChange={(e) => setShippingInfo({ ...shippingInfo, phone: e.target.value })}
-                          placeholder="Enter your phone number"
-                          required
-                          className="h-10 sm:h-12 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                          readOnly
+                          className="h-10 sm:h-12 bg-gray-100 dark:bg-gray-600 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white cursor-not-allowed"
                         />
                       </div>
                     </div>
@@ -741,39 +917,32 @@ export default function CartPage() {
                       <Input
                         id="street"
                         value={shippingInfo.street}
-                        onChange={(e) => setShippingInfo({ ...shippingInfo, street: e.target.value })}
-                        placeholder="Enter your street address"
-                        required
-                        className="h-10 sm:h-12 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                        readOnly
+                        className="h-10 sm:h-12 bg-gray-100 dark:bg-gray-600 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white cursor-not-allowed"
                       />
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="city" className="text-sm text-gray-700 dark:text-gray-300">
-                          City
-                        </Label>
-                        <Input
-                          id="city"
-                          value={shippingInfo.city}
-                          onChange={(e) => setShippingInfo({ ...shippingInfo, city: e.target.value })}
-                          placeholder="Enter your city"
-                          required
-                          className="h-10 sm:h-12 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="province" className="text-sm text-gray-700 dark:text-gray-300">
-                          Province
-                        </Label>
-                        <Input
-                          id="province"
-                          value={shippingInfo.province}
-                          onChange={(e) => setShippingInfo({ ...shippingInfo, province: e.target.value })}
-                          placeholder="Enter your province"
-                          required
-                          className="h-10 sm:h-12 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                        />
-                      </div>
+                    <LocationSelector
+                      selectedProvince={shippingInfo.province}
+                      selectedCity={shippingInfo.city}
+                      onProvinceChange={(province) => {
+                        setShippingInfo({ ...shippingInfo, province })
+                        // Automatically update shipping region based on province
+                        const region = getShippingRegionByProvince(province)
+                        setShippingLocation(region)
+                      }}
+                      onCityChange={(city) => setShippingInfo({ ...shippingInfo, city })}
+                      disabled={true}
+                    />
+                    <div>
+                      <Label htmlFor="shippingRegion" className="text-sm text-gray-700 dark:text-gray-300">
+                        Shipping Region
+                      </Label>
+                      <Input
+                        id="shippingRegion"
+                        value={shippingLocation}
+                        readOnly
+                        className="h-10 sm:h-12 bg-gray-100 dark:bg-gray-600 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white cursor-not-allowed"
+                      />
                     </div>
                     <div>
                       <Label htmlFor="zipCode" className="text-sm text-gray-700 dark:text-gray-300">
@@ -782,10 +951,8 @@ export default function CartPage() {
                       <Input
                         id="zipCode"
                         value={shippingInfo.zipCode}
-                        onChange={(e) => setShippingInfo({ ...shippingInfo, zipCode: e.target.value })}
-                        placeholder="Enter your ZIP code"
-                        required
-                        className="h-10 sm:h-12 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                        readOnly
+                        className="h-10 sm:h-12 bg-gray-100 dark:bg-gray-600 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white cursor-not-allowed"
                       />
                     </div>
                     <div>
@@ -794,11 +961,9 @@ export default function CartPage() {
                       </Label>
                       <Input
                         id="country"
-                        value={shippingInfo.country}
-                        onChange={(e) => setShippingInfo({ ...shippingInfo, country: e.target.value })}
-                        placeholder="Enter your country"
-                        required
-                        className="h-10 sm:h-12 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                        value="Philippines"
+                        readOnly
+                        className="h-10 sm:h-12 bg-gray-100 dark:bg-gray-600 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white cursor-not-allowed"
                       />
                     </div>
                   </div>
@@ -899,97 +1064,129 @@ export default function CartPage() {
 
         {/* QR Code Dialog */}
         <Dialog open={showQRDialog} onOpenChange={setShowQRDialog}>
-          <DialogContent className="sm:max-w-md bg-card border-border">
-            <DialogHeader>
-              <DialogTitle className="text-center text-base sm:text-lg text-gray-900 dark:text-yellow-400">
-                {qrPaymentMethod === "gcash" ? "GCash Payment" : "PayMaya Payment"}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="flex flex-col items-center space-y-4 p-4 sm:p-6">
-              <div className="w-48 h-48 sm:w-64 sm:h-64 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-lg flex items-center justify-center">
-                {qrPaymentMethod === "gcash" ? (
-                  <Image
-                    src="/images/gcash-logo.png"
-                    alt="GCash QR Code"
-                    width={200}
-                    height={200}
-                    className="object-contain"
-                  />
-                ) : (
-                  <Image
-                    src="/images/maya-logo.png"
-                    alt="PayMaya QR Code"
-                    width={200}
-                    height={200}
-                    className="object-contain"
-                  />
-                )}
+          <DialogContent className="sm:max-w-4xl bg-gradient-to-br from-blue-900 to-blue-800 border-0 text-white p-0 [&>button]:hidden max-h-[90vh] overflow-y-auto">
+            {/* Visually hidden title for accessibility */}
+            <DialogTitle className="sr-only">
+              {qrPaymentMethod === "gcash" ? "GCash Payment" : "PayMaya Payment"} Dialog
+            </DialogTitle>
+            {/* Header */}
+            <div className="flex justify-between items-center p-6 border-b border-blue-700">
+              <div className="text-center flex-1">
+                <h2 className="text-xl font-bold text-yellow-400 mb-2">
+                  {qrPaymentMethod === "gcash" ? "GCash Payment" : "PayMaya Payment"}
+                </h2>
+                <p className="text-lg font-semibold">Total Amount: ₱{(total || 0).toLocaleString()}</p>
               </div>
-              <div className="text-center">
-                <p className="text-lg font-semibold text-gray-900 dark:text-yellow-400">₱{(total || 0).toLocaleString()}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 px-4">
-                  Scan this QR code with your {qrPaymentMethod === "gcash" ? "GCash" : "PayMaya"} app
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                  Upload payment screenshot after completing the payment
-                </p>
-              </div>
-              
-              {/* Screenshot Upload in QR Dialog */}
-              <div className="w-full space-y-2">
-                <Label className="text-sm text-gray-700 dark:text-gray-300">
-                  Payment Screenshot *
-                </Label>
-                <div className="relative">
-                  <input
-                    id="qrPaymentScreenshot"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleScreenshotUpload}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="qrPaymentScreenshot"
-                    className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <Upload className="w-8 h-8 mb-2 text-gray-500 dark:text-gray-400" />
-                      <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-                        <span className="font-semibold">Click to upload</span> payment screenshot
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">PNG, JPG or JPEG (MAX. 10MB)</p>
-                    </div>
-                  </label>
-                </div>
-                {screenshotPreview && (
-                  <div className="mt-2">
-                    <img
-                      src={screenshotPreview}
-                      alt="Payment screenshot preview"
-                      className="max-w-full h-32 object-contain border border-gray-200 dark:border-gray-600 rounded mx-auto"
-                    />
-                  </div>
-                )}
-              </div>
-              
-              <Button 
-                onClick={() => {
-                  if (!paymentScreenshot) {
-                    toast({
-                      title: "Screenshot Required",
-                      description: "Please upload a payment screenshot before continuing.",
-                      variant: "destructive"
-                    })
-                    return
-                  }
-                  setShowQRDialog(false)
-                }} 
-                className="w-full" 
-                variant="outline"
-                disabled={!paymentScreenshot}
+              <button
+                onClick={() => setShowQRDialog(false)}
+                className="text-white hover:text-gray-300 transition-colors"
               >
-                Payment Completed
-              </Button>
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Main Content - Two Column Layout */}
+            <div className="flex flex-col lg:flex-row">
+              {/* Left Column - QR Code */}
+              <div className="flex-1 p-3 lg:p-6 flex flex-col items-center justify-center bg-transparent text-white">
+                <div className="mb-4 w-full max-w-[280px] sm:max-w-[350px] lg:max-w-[600px] aspect-square flex items-center justify-center">
+                  {qrPaymentMethod === "gcash" ? (
+                    <Image
+                      src="/images/cashg.png"
+                      alt="GCash QR Code"
+                      width={600}
+                      height={600}
+                      className="object-contain w-full h-full"
+                    />
+                  ) : (
+                    <Image
+                      src="/images/ayam.png"
+                      alt="PayMaya QR Code"
+                      width={600}
+                      height={600}
+                      className="object-contain w-full h-full"
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column - Instructions and Upload */}
+              <div className="flex-1 p-3 lg:p-6 space-y-4 lg:space-y-6">
+                {/* Payment Instructions */}
+                <div className="bg-blue-800 rounded-lg p-4 lg:p-8 border-2 border-blue-600 min-h-[150px] lg:min-h-[200px]">
+                  <div className="flex items-center mb-3 lg:mb-4">
+                    <div className="w-6 h-6 lg:w-8 lg:h-8 bg-blue-600 rounded mr-3 lg:mr-4 flex items-center justify-center">
+                      <span className="text-xs lg:text-sm font-bold">📋</span>
+                    </div>
+                    <h3 className="font-semibold text-white text-base lg:text-lg">Payment Instructions</h3>
+                  </div>
+                  <ol className="space-y-2 lg:space-y-3 text-sm lg:text-base text-gray-200">
+                    <li>1. Open your {qrPaymentMethod === "gcash" ? "GCash" : "PayMaya"} app</li>
+                    <li>2. Scan the QR code or enter ₱{(total || 0).toLocaleString()} manually</li>
+                    <li>3. Complete the payment transaction</li>
+                    <li>4. Take a screenshot of the successful payment confirmation</li>
+                    <li>5. Upload the screenshot in the section below</li>
+                  </ol>
+                </div>
+
+                {/* Upload Section */}
+                <div className="bg-gray-800 rounded-lg p-3 lg:p-4">
+                  <div className="flex items-center mb-2 lg:mb-3">
+                    <Upload className="w-4 h-4 lg:w-5 lg:h-5 mr-2 text-white" />
+                    <h3 className="font-semibold text-white text-sm lg:text-base">Upload Payment Screenshot *</h3>
+                  </div>
+                  <div className="relative">
+                    <input
+                      id="qrPaymentScreenshot"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleScreenshotUpload}
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor="qrPaymentScreenshot"
+                      className="flex flex-col items-center justify-center w-full h-24 lg:h-32 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer bg-gray-700 hover:bg-gray-600 transition-colors"
+                    >
+                      <div className="flex flex-col items-center justify-center pt-3 pb-4 lg:pt-5 lg:pb-6">
+                        <Upload className="w-6 h-6 lg:w-8 lg:h-8 mb-1 lg:mb-2 text-gray-300" />
+                        <p className="mb-1 lg:mb-2 text-xs lg:text-sm text-gray-300">
+                          <span className="font-semibold">Click to upload</span> your payment screenshot
+                        </p>
+                        <p className="text-xs text-gray-400">PNG, JPG or JPEG (MAX. 10MB)</p>
+                      </div>
+                    </label>
+                  </div>
+                  {screenshotPreview && (
+                    <div className="mt-3">
+                      <img
+                        src={screenshotPreview}
+                        alt="Payment screenshot preview"
+                        className="max-w-full h-32 object-contain border border-gray-600 rounded mx-auto"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Confirm Button */}
+                <Button 
+                  onClick={() => {
+                    if (!paymentScreenshot) {
+                      toast({
+                        title: "Screenshot Required",
+                        description: "Please upload a payment screenshot before continuing.",
+                        variant: "destructive"
+                      })
+                      return
+                    }
+                    setShowQRDialog(false)
+                  }} 
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg" 
+                  disabled={!paymentScreenshot}
+                >
+                  <span className="mr-2">✓</span>
+                  Confirm Payment Completed
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
