@@ -188,20 +188,8 @@ export function AdminNotifications() {
     }
   }
 
-  const handleDropdownOpen = () => {
-    // Mark all visible notifications as viewed when dropdown opens
-    const orderIds = notifications.recentOrders.map(order => order.id)
-    if (orderIds.length > 0) {
-      markNotificationsAsViewed(orderIds)
-    }
-  }
-
   return (
-    <DropdownMenu onOpenChange={(open) => {
-      if (open) {
-        handleDropdownOpen()
-      }
-    }}>
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
