@@ -1092,7 +1092,7 @@ export default function POSPage() {
           
           <div class="contact-info">
             <div>Tel: +63 956 879 8828</div>
-            <div>Email: kurab1983@gmail.com</div>
+            <div>Email: <a href="https://mail.google.com/mail/u/0/#inbox" target="_blank" rel="noopener noreferrer" style="color: #007bff; text-decoration: none;">kurab1983@gmail.com</a></div>
             <div>Web: gkicks.shop</div>
           </div>
         </div>

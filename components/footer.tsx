@@ -220,7 +220,14 @@ export function Footer() {
               </div>
               <div className="flex items-center justify-center sm:justify-start space-x-3">
                 <Mail className="h-4 w-4 text-primary flex-shrink-0" />
-                <span className="text-sm text-muted-foreground">kurab1983@gmail.com</span>
+                <a 
+                  href="https://mail.google.com/mail/u/0/#inbox" 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                >
+                  kurab1983@gmail.com
+                </a>
               </div>
               <div className="flex items-start justify-center sm:justify-start space-x-3">
                 <Clock className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
@@ -338,7 +345,14 @@ export function Footer() {
                   </div>
                   <div className="flex items-center space-x-3">
                     <Mail className="h-4 w-4 text-primary flex-shrink-0" />
-                    <span className="text-sm text-muted-foreground">kurab1983@gmail.com</span>
+                    <a 
+                      href="https://mail.google.com/mail/u/0/#inbox" 
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                    >
+                      kurab1983@gmail.com
+                    </a>
                   </div>
                   <Dialog>
                     <DialogTrigger asChild>

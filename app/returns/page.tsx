@@ -66,7 +66,7 @@ export default function ReturnsPage() {
                   If you have any questions about returns or exchanges, please contact our customer service team:
                 </p>
                 <div className="mt-4 text-muted-foreground space-y-2">
-                  <p><strong>Email:</strong> kurab1983@gmail.com</p>
+                  <p><strong>Email:</strong> <a href="https://mail.google.com/mail/u/0/#inbox" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">kurab1983@gmail.com</a></p>
                   <p><strong>Phone:</strong> +63 956 879 8828</p>
                   <p><strong>Address:</strong> Canlubang Bridge, Mayapa-Canlubang Cadre Rd, Calamba, 4027 Laguna, Philippines</p>
                   <p><strong>Hours:</strong> Monday-Sunday: Always Open</p>
