@@ -139,27 +139,80 @@ export default function ProductPage() {
 
     function fetchStocks() {
       const stocks: { [color: string]: { [size: string]: number } } = {}
-      const colors = memoizedProduct?.colors && memoizedProduct?.colors.length > 0 ? memoizedProduct.colors : ["default"]
-      const sizes = memoizedProduct?.sizes || ["5", "6", "7", "8", "9", "10", "11", "12"]
       
-      for (const color of colors) {
-        stocks[color] = {}
-        for (const size of sizes) {
-          // Use product data directly instead of making API calls
-          if (memoizedProduct?.variants && memoizedProduct.variants[color] && memoizedProduct.variants[color][size] !== undefined) {
-            stocks[color][size] = memoizedProduct.variants[color][size] || 0
-          } else if (memoizedProduct?.variants && Object.keys(memoizedProduct.variants).length > 0) {
-            // If general stock is available, assume reasonable stock for missing variants
-            stocks[color][size] = (memoizedProduct as any).stock_quantity > 0 ? Math.min((memoizedProduct as any).stock_quantity, 10) : 0
-          } else {
-            // Fall back to general stock_quantity if no variants structure exists
-            stocks[color][size] = (memoizedProduct as any)?.stock_quantity || 10
+      // Debug logging
+      console.log('🔍 Product variants:', memoizedProduct?.variants)
+      console.log('🔍 Product colors:', memoizedProduct?.colors)
+      
+      const colors = memoizedProduct?.colors && memoizedProduct?.colors.length > 0 ? memoizedProduct.colors : ["default"]
+      
+      // Get all available sizes from variants (including out of stock ones)
+      let availableSizes: string[] = []
+      if (memoizedProduct?.variants && Object.keys(memoizedProduct.variants).length > 0) {
+        // Get all sizes that exist in variants (regardless of stock level)
+        const allSizes = new Set<string>()
+        
+        // Check all variant colors, not just the product colors array
+        const variantColors = Object.keys(memoizedProduct.variants)
+        console.log('🔍 Variant colors found:', variantColors)
+        
+        for (const variantColor of variantColors) {
+          if (memoizedProduct.variants[variantColor]) {
+            Object.keys(memoizedProduct.variants[variantColor]).forEach((size) => {
+              allSizes.add(size)
+            })
           }
         }
+        availableSizes = Array.from(allSizes).sort((a, b) => Number(a) - Number(b))
+        
+        // Use variant colors instead of product colors if they exist
+        const effectiveColors = variantColors.length > 0 ? variantColors : colors
+        
+        for (const color of effectiveColors) {
+          stocks[color] = {}
+          for (const size of availableSizes) {
+            // Use product data directly instead of making API calls
+            if (memoizedProduct.variants[color] && memoizedProduct.variants[color][size] !== undefined) {
+              stocks[color][size] = memoizedProduct.variants[color][size] || 0
+            } else {
+              // If this size doesn't exist in variants, set stock to 0
+              stocks[color][size] = 0
+            }
+          }
+        }
+        
+        console.log('🔍 Final stock levels:', stocks)
+        setStockLevels(stocks)
+        setSelectedColor(effectiveColors[0])
+        
+      } else if (memoizedProduct?.sizes && Array.isArray(memoizedProduct.sizes)) {
+        // Use product sizes if variants don't exist
+        availableSizes = memoizedProduct.sizes
+        
+        for (const color of colors) {
+          stocks[color] = {}
+          for (const size of availableSizes) {
+            // Fall back to general stock_quantity if no variants structure exists
+            stocks[color][size] = (memoizedProduct as any)?.stock_quantity || 0
+          }
+        }
+        
+        setStockLevels(stocks)
+        setSelectedColor(colors[0])
+      } else {
+        // Fallback to common sizes if no size data exists
+        availableSizes = ["6", "7", "8", "9", "10", "11", "12", "13", "14", "15"]
+        
+        for (const color of colors) {
+          stocks[color] = {}
+          for (const size of availableSizes) {
+            stocks[color][size] = (memoizedProduct as any)?.stock_quantity || 0
+          }
+        }
+        
+        setStockLevels(stocks)
+        setSelectedColor(colors[0])
       }
-      
-      setStockLevels(stocks)
-      setSelectedColor(colors[0])
     }
 
     fetchStocks()
@@ -577,26 +630,32 @@ export default function ProductPage() {
                     {selectedSize || "Select size"}
                   </span>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {(Array.isArray(product?.sizes) ? product.sizes : ["5", "6", "7", "8", "9", "10", "11", "12"]).map((size) => {
-                    const colorToCheck = selectedColor || (product.colors && product.colors.length > 0 ? product.colors[0] : "default")
-                    const sizeStock = stockLevels[colorToCheck]?.[size] ?? 0
-                    const isAvailable = sizeStock > 0
+                <div className="grid grid-cols-6 gap-2">
+                  {(stockLevels[selectedColor || (product.colors && product.colors.length > 0 ? product.colors[0] : "default")] ? 
+                    Object.entries(stockLevels[selectedColor || (product.colors && product.colors.length > 0 ? product.colors[0] : "default")])
+                      .map(([size, stock]) => ({ size, stock: typeof stock === "number" ? stock : 0 }))
+                      .sort((a, b) => Number(a.size) - Number(b.size)) : 
+                    []
+                  ).map(({ size, stock }) => {
+                    const isAvailable = stock > 0
 
                     return (
                       <button
                         key={size}
                         onClick={() => isAvailable && setSelectedSize(size)}
                         disabled={!isAvailable}
-                        className={`p-2 sm:p-3 text-sm font-medium rounded-lg border-2 transition-colors min-h-[44px] ${
+                        className={`p-2 sm:p-3 text-sm font-medium rounded-lg border-2 transition-colors min-h-[44px] relative ${
                           selectedSize === size
                             ? "border-yellow-400 bg-yellow-400 text-black"
                             : isAvailable
                             ? "border-border hover:border-gray-300 dark:hover:border-gray-500 bg-card text-foreground"
-                  : "border-muted bg-muted text-muted-foreground cursor-not-allowed"
+                            : "border-muted bg-muted text-muted-foreground cursor-not-allowed"
                         }`}
                       >
-                        {size}
+                        <div className="flex flex-col items-center">
+                          <span>{size}</span>
+                          <span className="text-xs opacity-70">({stock})</span>
+                        </div>
                       </button>
                     )
                   })}
