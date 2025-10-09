@@ -153,6 +153,7 @@ export async function fetchProductByIdFromAPI(id: number): Promise<Product | nul
       colors: data.colors || [],
       sizes: data.sizes || [],
       colorImages: data.color_images || {},
+      variants: data.variants || {},
       isNew: data.is_new || false,
       isSale: data.is_sale || false,
       views: data.views || 0,
