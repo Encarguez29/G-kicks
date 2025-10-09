@@ -1,14 +1,14 @@
 # Quick Resume Deployment Script for GKicks
-# VPS: 72.60.111.2 | Domain: g-kicks.shop
+# VPS: 72.60.211.237 | Domain: g-kicks.shop
 
 Write-Host "=== GKicks Quick Deployment Resume ===" -ForegroundColor Cyan
-Write-Host "VPS: 72.60.111.2" -ForegroundColor White
+Write-Host "VPS: 72.60.211.237" -ForegroundColor White
 Write-Host "Domain: g-kicks.shop" -ForegroundColor White
 Write-Host ""
 
 # Check VPS connectivity
 Write-Host "[1/3] Testing VPS connection..." -ForegroundColor Blue
-$ping = Test-Connection -ComputerName "72.60.111.2" -Count 1 -Quiet
+$ping = Test-Connection -ComputerName "72.60.211.237" -Count 1 -Quiet
 if ($ping) {
     Write-Host "✓ VPS is reachable" -ForegroundColor Green
 } else {
@@ -18,7 +18,7 @@ if ($ping) {
 
 Write-Host "`n[2/3] Manual SSH Deployment Steps:" -ForegroundColor Blue
 Write-Host "`nConnect to your VPS and run these commands:" -ForegroundColor Yellow
-Write-Host "ssh root@72.60.111.2" -ForegroundColor Gray
+Write-Host "ssh root@72.60.211.237" -ForegroundColor Gray
 Write-Host ""
 
 Write-Host "# Update system" -ForegroundColor Green
@@ -66,7 +66,7 @@ Write-Host "certbot --nginx -d g-kicks.shop -d www.g-kicks.shop" -ForegroundColo
 Write-Host ""
 
 Write-Host "[3/3] Post-Deployment Checklist:" -ForegroundColor Blue
-Write-Host "□ DNS A records configured (@ and www -> 72.60.111.2)" -ForegroundColor White
+Write-Host "□ DNS A records configured (@ and www -> 72.60.211.237)" -ForegroundColor White
 Write-Host "□ SSL certificates generated" -ForegroundColor White
 Write-Host "□ Database configured and migrated" -ForegroundColor White
 Write-Host "□ Application running (pm2 status)" -ForegroundColor White

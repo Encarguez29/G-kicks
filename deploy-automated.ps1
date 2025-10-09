@@ -1,9 +1,9 @@
 # GKicks Automated VPS Deployment Script (PowerShell)
-# VPS IP: 72.60.111.2
+# VPS IP: 72.60.211.237
 # Domain: g-kicks.shop
 
 # Configuration
-$VPS_IP = "72.60.111.2"
+$VPS_IP = "72.60.211.237"
 $DOMAIN = "g-kicks.shop"
 $APP_NAME = "gkicks"
 $APP_DIR = "/var/www/gkicks"
