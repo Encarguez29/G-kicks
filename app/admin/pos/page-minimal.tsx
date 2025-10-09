@@ -59,6 +59,8 @@ export default function POSPage() {
   const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null)
   const [dailySales, setDailySales] = useState(0)
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [customerEmail, setCustomerEmail] = useState("")
+  const [isEmailSending, setIsEmailSending] = useState(false)
 
   const sizes = ["5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"]
 
@@ -428,28 +430,47 @@ export default function POSPage() {
     }
 
     try {
-      // Update inventory stock
-      cart.forEach((item) => {
-        // Update stock through API call
-        const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
-        fetch('/api/pos/update-stock', {
-          method: 'POST',
-          headers: {
-            'Authorization': token ? `Bearer ${token}` : '',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            productId: Number(item.productId),
-            color: item.color,
-            size: item.size,
-            quantity: -item.quantity // Negative to reduce stock
-          })
-        });
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
+      
+      // Prepare transaction data for API
+      const transactionData = {
+        items: cart.map(item => ({
+          productId: Number(item.productId),
+          variantId: null, // You might need to get this from your product data
+          name: item.name,
+          brand: item.brand,
+          size: item.size,
+          color: item.color,
+          quantity: item.quantity,
+          price: item.price
+        })),
+        total: getCartTotal(),
+        paymentMethod,
+        customerName: customerName || null,
+        paymentReference: paymentMethod !== 'cash' ? `REF-${Date.now()}` : null,
+        cashReceived: paymentMethod === 'cash' ? amountPaid : null,
+        changeGiven: paymentMethod === 'cash' ? getChange() : null
+      }
+
+      // Create POS transaction via API
+      const response = await fetch('/api/pos/transactions', {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(transactionData)
       })
 
-      // Create transaction
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to create transaction')
+      }
+
+      // Create local transaction object for UI
       const transaction: Transaction = {
-        id: `TXN-${Date.now()}`,
+        id: result.transactionId, // Use the actual transaction ID from database
         items: [...cart],
         total: getCartTotal(),
         paymentMethod,
@@ -459,19 +480,22 @@ export default function POSPage() {
 
       // Update daily sales
       const newDailySales = dailySales + getCartTotal()
-      // Update daily sales through API
-      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
-      await fetch('/api/pos/daily-sales', {
-        method: 'POST',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ totalSales: newDailySales })
-      })
-      setDailySales(newDailySales)
+      try {
+        await fetch('/api/pos/daily-sales', {
+          method: 'POST',
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ totalSales: newDailySales })
+        })
+        setDailySales(newDailySales)
+      } catch (salesError) {
+        console.error("Error updating daily sales:", salesError)
+        // Don't fail the transaction for this
+      }
 
-      // Save transaction
+      // Save transaction locally
       saveTransaction(transaction)
       setLastTransaction(transaction)
 
@@ -489,7 +513,7 @@ export default function POSPage() {
       toast.success("Transaction completed successfully")
     } catch (error) {
       console.error("Error processing checkout:", error)
-      toast.error("Failed to process transaction")
+      toast.error(error instanceof Error ? error.message : "Failed to process transaction")
     }
   }
 
@@ -508,6 +532,45 @@ export default function POSPage() {
       })
     } catch (error) {
       return "Invalid Date"
+    }
+  }
+
+  const sendReceiptEmail = async () => {
+    if (!customerEmail || !lastTransaction) {
+      toast.error("Customer email and transaction required")
+      return
+    }
+
+    setIsEmailSending(true)
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
+      
+      const response = await fetch('/api/pos/send-receipt', {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transactionId: lastTransaction.id,
+          customerEmail: customerEmail,
+          customerName: lastTransaction.customerName || customerName
+        })
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        toast.success("Receipt sent successfully!")
+        setCustomerEmail("")
+      } else {
+        toast.error(result.error || "Failed to send receipt")
+      }
+    } catch (error) {
+      console.error("Error sending receipt:", error)
+      toast.error("Failed to send receipt")
+    } finally {
+      setIsEmailSending(false)
     }
   }
 
@@ -913,7 +976,7 @@ export default function POSPage() {
               {lastTransaction && (
                 <div className="space-y-4">
                   <div className="text-center space-y-1">
-                    <h3 className="font-bold">SOLE MATES</h3>
+                    <h3 className="font-bold">GKICKS</h3>
                     <p className="text-sm text-muted-foreground">Transaction ID: {lastTransaction.id}</p>
                     <p className="text-sm text-muted-foreground">{formatDate(lastTransaction.timestamp)}</p>
                     {lastTransaction.customerName && (
@@ -954,6 +1017,41 @@ export default function POSPage() {
 
                   <div className="text-center text-sm text-muted-foreground">
                     <p>Thank you for your purchase!</p>
+                  </div>
+
+                  {/* Email Receipt Section */}
+                  <Separator />
+                  <div className="space-y-3">
+                    <div className="text-center">
+                      <p className="text-sm font-medium">Send Receipt via Email</p>
+                      <p className="text-xs text-muted-foreground">Customer will receive a PDF receipt</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Input
+                        placeholder="Customer email address"
+                        type="email"
+                        value={customerEmail}
+                        onChange={(e) => setCustomerEmail(e.target.value)}
+                      />
+                      <Button 
+                        onClick={sendReceiptEmail} 
+                        className="w-full" 
+                        variant="outline"
+                        disabled={!customerEmail || isEmailSending}
+                      >
+                        {isEmailSending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Receipt className="h-4 w-4 mr-2" />
+                            Send Email Receipt
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
 
                   <Button onClick={() => setIsReceiptDialogOpen(false)} className="w-full">
