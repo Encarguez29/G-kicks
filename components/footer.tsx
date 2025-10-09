@@ -36,8 +36,7 @@ export function Footer() {
       links: [
         { href: "/men", label: "Men's Shoes" },
         { href: "/women", label: "Women's Shoes" },
-        { href: "/kids", label: "Kids' Shoes" },
-        { href: "/sale", label: "Sale Items" }
+        { href: "/kids", label: "Kids' Shoes" }
       ]
     },
     {
@@ -108,11 +107,6 @@ export function Footer() {
               </li>
               <li>
 
-              </li>
-              <li>
-                <Link href="/sale" className="text-muted-foreground hover:text-primary transition-colors text-sm">
-                  Sale Items
-                </Link>
               </li>
             </ul>
           </div>
