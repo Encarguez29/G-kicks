@@ -177,9 +177,6 @@ export function Header({ onSearch }: HeaderProps) {
             <Link href="/kids" className="hover:text-yellow-400 transition-colors px-2 py-1 rounded-md">
               Kids
             </Link>
-            <Link href="/sale" className="hover:text-yellow-400 transition-colors px-2 py-1 rounded-md">
-              Sale
-            </Link>
           </nav>
 
           {/* Search Bar */}
@@ -503,13 +500,6 @@ export function Header({ onSearch }: HeaderProps) {
                   onClick={() => setIsMenuOpen(false)}
                 >
                   Kids
-                </Link>
-                <Link
-                  href="/sale"
-                  className="flex items-center justify-center px-4 py-3 text-sm font-medium hover:text-yellow-400 transition-colors bg-muted/30 rounded-lg"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Sale
                 </Link>
               </div>
 
