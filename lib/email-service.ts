@@ -233,6 +233,353 @@ Thank you for choosing GKICKS!
   }
 }
 
+// POS Receipt Email Data Interface
+interface POSReceiptEmailData {
+  receiptNumber: string;
+  transactionId: string;
+  customerName?: string;
+  customerEmail: string;
+  items: Array<{
+    name: string;
+    brand: string;
+    size: string;
+    color: string;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+  }>;
+  subtotal: number;
+  tax?: number;
+  total: number;
+  paymentMethod: string;
+  paymentReference?: string;
+  cashReceived?: number;
+  changeGiven?: number;
+  transactionDate: string;
+  cashierName?: string;
+}
+
+// Send POS receipt email with PDF attachment
+export async function sendPOSReceiptEmail(receiptData: POSReceiptEmailData, pdfBuffer: Buffer): Promise<boolean> {
+  try {
+    const transporter = createTransporter();
+    
+    // Verify transporter configuration
+    await transporter.verify();
+    
+    const formatCurrency = (amount: number) => `₱${amount.toFixed(2)}`;
+    const formatDate = (dateString: string) => {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-PH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+
+    // Ensure PDF buffer is valid
+    if (!Buffer.isBuffer(pdfBuffer) || pdfBuffer.length === 0) {
+      console.error('Invalid PDF buffer provided');
+      return false;
+    }
+
+    console.log('PDF Buffer info:', {
+      isBuffer: Buffer.isBuffer(pdfBuffer),
+      size: pdfBuffer.length,
+      startsWithPDF: pdfBuffer.toString('ascii', 0, 4) === '%PDF'
+    });
+
+    const mailOptions = {
+      from: {
+        name: 'GKICKS',
+        address: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@gkicks.com',
+      },
+      to: receiptData.customerEmail,
+      subject: `Receipt - ${receiptData.receiptNumber} | GKICKS`,
+      html: `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>GKICKS Receipt</title>
+          <style>
+            body {
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+              background-color: #f8f9fa;
+            }
+            .email-container {
+              background: white;
+              border-radius: 12px;
+              box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+              overflow: hidden;
+            }
+            .header {
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              padding: 30px;
+              text-align: center;
+            }
+            .logo {
+              font-size: 36px;
+              font-weight: bold;
+              margin-bottom: 10px;
+              letter-spacing: 2px;
+            }
+            .tagline {
+              font-size: 16px;
+              opacity: 0.9;
+            }
+            .content {
+              padding: 30px;
+            }
+            .greeting {
+              font-size: 20px;
+              color: #667eea;
+              margin-bottom: 20px;
+              font-weight: bold;
+            }
+            .message {
+              font-size: 16px;
+              margin-bottom: 25px;
+              line-height: 1.6;
+            }
+            .receipt-summary {
+              background: #f8f9fa;
+              padding: 20px;
+              border-radius: 8px;
+              margin: 25px 0;
+              border-left: 4px solid #667eea;
+            }
+            .receipt-summary h3 {
+              color: #667eea;
+              margin-bottom: 15px;
+              font-size: 18px;
+            }
+            .summary-row {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 8px;
+              font-size: 14px;
+            }
+            .summary-row.total {
+              border-top: 2px solid #667eea;
+              padding-top: 10px;
+              margin-top: 15px;
+              font-weight: bold;
+              font-size: 16px;
+              color: #667eea;
+            }
+            .items-list {
+              margin: 20px 0;
+            }
+            .item {
+              background: #f8f9fa;
+              padding: 15px;
+              margin-bottom: 10px;
+              border-radius: 6px;
+              border-left: 3px solid #667eea;
+            }
+            .item-name {
+              font-weight: bold;
+              color: #333;
+              margin-bottom: 5px;
+            }
+            .item-details {
+              font-size: 14px;
+              color: #666;
+              margin-bottom: 5px;
+            }
+            .item-pricing {
+              display: flex;
+              justify-content: space-between;
+              font-size: 14px;
+              color: #667eea;
+              font-weight: bold;
+            }
+            .attachment-note {
+              background: #e8f2ff;
+              padding: 20px;
+              border-radius: 8px;
+              margin: 25px 0;
+              border: 1px solid #b3d9ff;
+              text-align: center;
+            }
+            .attachment-note h3 {
+              color: #667eea;
+              margin-bottom: 10px;
+            }
+            .footer {
+              background: #f8f9fa;
+              padding: 25px;
+              text-align: center;
+              border-top: 1px solid #e9ecef;
+            }
+            .footer-text {
+              font-size: 14px;
+              color: #666;
+              margin-bottom: 15px;
+            }
+            .contact-info {
+              font-size: 12px;
+              color: #888;
+            }
+            .button {
+              display: inline-block;
+              background: #667eea;
+              color: white;
+              padding: 12px 25px;
+              text-decoration: none;
+              border-radius: 6px;
+              font-weight: bold;
+              margin: 15px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="email-container">
+            <div class="header">
+              <div class="logo">GKICKS</div>
+              <div class="tagline">Your Premium Shoe Destination</div>
+            </div>
+            
+            <div class="content">
+              <div class="greeting">
+                Hello ${receiptData.customerName || 'Valued Customer'}! 👋
+              </div>
+              
+              <div class="message">
+                Thank you for your purchase at GKICKS! We're excited that you chose us for your footwear needs. 
+                Your transaction has been completed successfully, and we've attached your detailed receipt as a PDF for your records.
+              </div>
+              
+              <div class="receipt-summary">
+                <h3>📋 Transaction Summary</h3>
+                <div class="summary-row">
+                  <span><strong>Receipt Number:</strong></span>
+                  <span>${receiptData.receiptNumber}</span>
+                </div>
+                <div class="summary-row">
+                  <span><strong>Transaction ID:</strong></span>
+                  <span>${receiptData.transactionId}</span>
+                </div>
+                <div class="summary-row">
+                  <span><strong>Date & Time:</strong></span>
+                  <span>${formatDate(receiptData.transactionDate)}</span>
+                </div>
+                <div class="summary-row">
+                  <span><strong>Payment Method:</strong></span>
+                  <span>${receiptData.paymentMethod.toUpperCase()}</span>
+                </div>
+                ${receiptData.cashierName ? `
+                <div class="summary-row">
+                  <span><strong>Served by:</strong></span>
+                  <span>${receiptData.cashierName}</span>
+                </div>
+                ` : ''}
+                <div class="summary-row total">
+                  <span>Total Amount:</span>
+                  <span>${formatCurrency(receiptData.total)}</span>
+                </div>
+              </div>
+              
+              <div class="items-list">
+                <h3 style="color: #667eea; margin-bottom: 15px;">🛍️ Items Purchased</h3>
+                ${receiptData.items.map(item => `
+                  <div class="item">
+                    <div class="item-name">${item.name}</div>
+                    <div class="item-details">
+                      <strong>Brand:</strong> ${item.brand} | 
+                      <strong>Size:</strong> ${item.size} | 
+                      <strong>Color:</strong> ${item.color}
+                    </div>
+                    <div class="item-pricing">
+                      <span>Qty: ${item.quantity} × ${formatCurrency(item.unitPrice)}</span>
+                      <span>${formatCurrency(item.totalPrice)}</span>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+              
+              <div class="attachment-note">
+                <h3>📎 Receipt Attachment</h3>
+                <p>Your detailed receipt is attached as a PDF file. Please save it for your records, warranty claims, and returns if needed.</p>
+              </div>
+              
+              <div class="message">
+                We hope you love your new shoes! If you have any questions about your purchase or need assistance, 
+                please don't hesitate to reach out to our customer support team.
+              </div>
+            </div>
+            
+            <div class="footer">
+              <div class="footer-text">
+                <strong>Thank you for choosing GKICKS!</strong><br>
+                We appreciate your business and look forward to serving you again.
+              </div>
+              <div class="contact-info">
+                📧 support@gkicks.com | 🌐 www.gkicks.com<br>
+                Follow us on social media for the latest updates and exclusive offers!
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `
+GKICKS - Receipt Confirmation
+
+Hello ${receiptData.customerName || 'Valued Customer'}!
+
+Thank you for your purchase at GKICKS! Your transaction has been completed successfully.
+
+Transaction Details:
+- Receipt Number: ${receiptData.receiptNumber}
+- Transaction ID: ${receiptData.transactionId}
+- Date & Time: ${formatDate(receiptData.transactionDate)}
+- Payment Method: ${receiptData.paymentMethod.toUpperCase()}
+${receiptData.cashierName ? `- Served by: ${receiptData.cashierName}` : ''}
+
+Items Purchased:
+${receiptData.items.map(item => 
+  `- ${item.name} (${item.brand})
+    Size: ${item.size} | Color: ${item.color}
+    Qty: ${item.quantity} × ${formatCurrency(item.unitPrice)} = ${formatCurrency(item.totalPrice)}`
+).join('\n')}
+
+Total Amount: ${formatCurrency(receiptData.total)}
+
+Your detailed receipt is attached as a PDF file for your records.
+
+Thank you for choosing GKICKS!
+For support: support@gkicks.com | www.gkicks.com
+      `,
+      attachments: [
+        {
+          filename: `GKICKS-Receipt-${receiptData.receiptNumber}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+          encoding: 'base64'
+        }
+      ]
+    };
+
+    const result = await transporter.sendMail(mailOptions);
+    console.log('POS receipt email sent successfully:', result.messageId);
+    return true;
+  } catch (error) {
+    console.error('Failed to send POS receipt email:', error);
+    return false;
+  }
+}
+
 // Generate HTML email template for staff notification
 function generateStaffNotificationHTML(notificationData: StaffNotificationData): string {
   const itemsHTML = notificationData.items
