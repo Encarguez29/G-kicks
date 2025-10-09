@@ -181,7 +181,7 @@ export function ProductCard({ product, onViewUpdate }: ProductCardProps) {
               <img
                 src={currentImage}
                 alt={safeProduct.name}
-                className="w-full h-24 sm:h-32 md:h-40 lg:h-48 xl:h-56 object-cover transition-all duration-700"
+                className="w-full h-48 sm:h-56 md:h-64 lg:h-72 xl:h-80 object-cover transition-all duration-700"
                 style={{
                   filter: isHovered ? "brightness(1.1) contrast(1.1)" : "brightness(1) contrast(1)",
                   transform: isHovered ? "scale(1.05)" : "scale(1)",
