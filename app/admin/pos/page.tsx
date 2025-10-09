@@ -1599,7 +1599,7 @@ export default function POSPage() {
                             {discountType !== "none" && (
                               <Input
                                 type="number"
-                                value={discountValue}
+                                value={discountValue || ""}
                                 onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
                                 placeholder={discountType === "percentage" ? "%" : "₱"}
                                 className="w-20 h-8 text-xs"
@@ -1727,7 +1727,7 @@ export default function POSPage() {
                                     </span>
                                     <Input
                                       type="number"
-                                      value={payment.amount}
+                                      value={payment.amount || ""}
                                       onChange={(e) => updatePaymentMethod(index, payment.method, Number(e.target.value))}
                                       placeholder="0.00"
                                       min="0"
@@ -1771,7 +1771,7 @@ export default function POSPage() {
                               <Input
                                 id="amount-paid"
                                 type="number"
-                                value={amountPaid}
+                                value={amountPaid || ""}
                                 onChange={(e) => setAmountPaid(Number(e.target.value))}
                                 placeholder="0.00"
                                 min="0"

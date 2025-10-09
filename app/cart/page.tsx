@@ -53,7 +53,7 @@ export default function CartPage() {
     country: "",
   })
 
-  const [customerEmail, setCustomerEmail] = useState(user?.email || "")
+  const [customerEmail, setCustomerEmail] = useState("")
   const [paymentMethod, setPaymentMethod] = useState("")
   const [paymentScreenshot, setPaymentScreenshot] = useState<string | null>(null)
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null)
@@ -118,6 +118,11 @@ export default function CartPage() {
       try {
         const token = localStorage.getItem('auth_token')
         if (!token) return
+
+        // Set customer email from user data
+        if (user.email) {
+          setCustomerEmail(user.email)
+        }
 
         // Load profile data
         const profileResponse = await fetch('/api/profiles', {

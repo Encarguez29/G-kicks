@@ -442,7 +442,28 @@ export default function InventoryPage() {
 
   const handleEdit = (product: Product) => {
     setCurrentProduct(product)
-    setFormData(product)
+    setFormData({
+      name: product.name || "",
+      subtitle: product.subtitle || "",
+      sku: product.sku || "",
+      category: product.category || "",
+      brand: product.brand || "",
+      price: product.price || 0,
+      originalPrice: product.originalPrice || 0,
+      description: product.description || "",
+      is_new: product.is_new || false,
+      is_sale: product.is_sale || false,
+      is_active: product.is_active !== undefined ? product.is_active : true,
+      low_stock_threshold: product.low_stock_threshold || 10,
+      colors: product.colors || [],
+      sizes: product.sizes || [],
+      variants: product.variants || {},
+      model_3d_url: product.model_3d_url || "",
+      model_3d_filename: product.model_3d_filename || "",
+      image_url: product.image_url || "",
+      gallery_images: product.gallery_images || [],
+      status: product.status || "Active"
+    })
     setSelectedImages([]) // Clear selected images for edit mode
     setImagesToRemove([]) // Clear images to remove for edit mode
     setRemove3DModel(false) // Clear 3D model removal state for edit mode
