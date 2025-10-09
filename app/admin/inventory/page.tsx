@@ -193,7 +193,7 @@ export default function InventoryPage() {
   }, [adminState.isLoading, adminState.isAuthenticated, router, toast])
 
   const categories = ["Men", "Women", "Kids"]
-  const brands = ["Nike", "Adidas", "Converse", "New Balance", "ASICS"]
+  const brands = ["Nike", "Adidas", "Converse", "New Balance", "ASICS", "Puma"]
   const commonSizes = ["6", "7", "8", "9", "10", "11", "12"]
 
   const loadProducts = async () => {
@@ -1173,19 +1173,13 @@ export default function InventoryPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="brand" className="text-foreground">Brand *</Label>
-                  <Select
+                  <Input
+                    id="brand"
                     value={formData.brand}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, brand: value }))}
-                  >
-                    <SelectTrigger className="bg-background border-border text-foreground">
-                      <SelectValue placeholder="Select brand" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {brands.map(brand => (
-                        <SelectItem key={brand} value={brand}>{brand}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
+                    placeholder="Enter brand name (e.g., Nike, Adidas, Puma)"
+                    className="bg-background border-border text-foreground"
+                  />
                 </div>
               </div>
 
@@ -1718,19 +1712,13 @@ export default function InventoryPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="edit-brand" className="text-gray-900 dark:text-white">Brand *</Label>
-                  <Select
+                  <Input
+                    id="edit-brand"
                     value={formData.brand}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, brand: value }))}
-                  >
-                    <SelectTrigger className="bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white">
-                      <SelectValue placeholder="Select brand" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {brands.map(brand => (
-                        <SelectItem key={brand} value={brand}>{brand}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
+                    placeholder="Enter brand name (e.g., Nike, Adidas, Puma)"
+                    className="bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white"
+                  />
                 </div>
               </div>
 
