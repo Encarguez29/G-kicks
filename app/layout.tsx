@@ -16,6 +16,11 @@ export const metadata: Metadata = {
   description: 'Discover the latest collection of premium shoes for men, women, and kids at GKICKS. Quality footwear with style and comfort.',
   keywords: 'shoes, sneakers, footwear, men shoes, women shoes, kids shoes, premium shoes',
   authors: [{ name: 'GKICKS Team' }],
+  icons: {
+    icon: '/images/gkicks-transparent-logo.png',
+    shortcut: '/images/gkicks-transparent-logo.png',
+    apple: '/images/gkicks-transparent-logo.png',
+  },
 }
 
 export const viewport = {

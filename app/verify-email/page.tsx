@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CheckCircle, XCircle, Mail, Loader2, AlertCircle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import Image from 'next/image'
 
 type VerificationStatus = 'loading' | 'success' | 'error' | 'already-verified' | 'expired'
 
@@ -163,27 +164,41 @@ export default function VerifyEmailPage() {
   const getStatusColor = () => {
     switch (status) {
       case 'success':
-        return 'text-green-600'
+        return 'text-green-600 dark:text-green-400'
       case 'already-verified':
-        return 'text-blue-600'
+        return 'text-blue-600 dark:text-blue-400'
       case 'expired':
-        return 'text-yellow-600'
+        return 'text-yellow-600 dark:text-yellow-400'
       case 'error':
-        return 'text-red-600'
+        return 'text-red-600 dark:text-red-400'
       case 'loading':
       default:
-        return 'text-gray-600'
+        return 'text-gray-600 dark:text-gray-400'
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            {getStatusIcon()}
+    <div className="min-h-screen bg-background/95 backdrop-blur flex flex-col items-center justify-center p-4">
+      {/* Header with Logo and Title */}
+      <div className="flex items-center gap-3 mb-8">
+        <Image 
+          src="/images/gkicks-transparent-logo.png" 
+          alt="GKicks Logo" 
+          width={48} 
+          height={48}
+          className="object-contain"
+        />
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          GKICKS - Premium Shoe Store
+        </h1>
+      </div>
+      
+      <Card className="w-full max-w-md bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 shadow-xl">
+        <CardHeader className="text-center pb-4">
+          <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+            <Mail className="w-8 h-8 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold">
+          <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
             {status === 'loading' && 'Verifying Email...'}
             {status === 'success' && 'Email Verified!'}
             {status === 'already-verified' && 'Already Verified'}
@@ -198,13 +213,13 @@ export default function VerifyEmailPage() {
         <CardContent className="space-y-4">
           {status === 'success' && (
             <div className="text-center space-y-4">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <Mail className="h-8 w-8 text-green-500 mx-auto mb-2" />
-                <p className="text-sm text-green-700">
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                <Mail className="h-8 w-8 text-green-500 dark:text-green-400 mx-auto mb-2" />
+                <p className="text-sm text-green-700 dark:text-green-300">
                   A welcome email has been sent to your inbox!
                 </p>
               </div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Redirecting you to your account in a few seconds...
               </p>
               <Button onClick={handleGoToProfile} className="w-full">
@@ -245,7 +260,7 @@ export default function VerifyEmailPage() {
           
           {status === 'loading' && (
             <div className="text-center">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Please wait while we verify your email address...
               </p>
             </div>
