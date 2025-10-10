@@ -28,7 +28,7 @@ const sendVerificationEmail = async (email, firstName, verificationToken) => {
   try {
     const transporter = createTransporter();
     
-    const verificationUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3001'}/verify-email?token=${verificationToken}`;
+    const verificationUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://72.60.211.237'}/verify-email?token=${verificationToken}`;
     
     const mailOptions = {
       from: process.env.SMTP_FROM || `"GKICKS Shop" <${process.env.SMTP_USER || process.env.GMAIL_USER}>`,
@@ -72,7 +72,7 @@ const sendVerificationEmail = async (email, firstName, verificationToken) => {
               <p>If you didn't create an account with GKICKS Shop, please ignore this email.</p>
             </div>
             <div class="footer">
-              <p>© 2024 GKICKS Shop. All rights reserved.</p>
+              <p>© 2025 GKICKS Shop. All rights reserved.</p>
               <p>This is an automated email, please do not reply.</p>
             </div>
           </div>
