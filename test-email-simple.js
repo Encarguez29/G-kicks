@@ -30,7 +30,7 @@ async function testEmailSending() {
     // Send test verification email
     const testEmail = 'test@gmail.com';
     const verificationToken = 'test-token-123';
-    const verificationUrl = `http://localhost:3001/verify-email?token=${verificationToken}`;
+    const verificationUrl = `http://72.60.211.237/verify-email?token=${verificationToken}`;
     
     const mailOptions = {
       from: process.env.SMTP_FROM || `"GKICKS Shop" <${process.env.SMTP_USER || process.env.GMAIL_USER}>`,

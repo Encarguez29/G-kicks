@@ -34,7 +34,7 @@ export default function HomePage() {
   }, [])
 
   useEffect(() => {
-    const search = searchParams.get("search")
+    const search = searchParams?.get("search")
     if (search) {
       setSearchQuery(search)
     } else {

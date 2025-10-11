@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import React, { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
+import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Lock, Eye, EyeOff, CheckCircle, XCircle } from "lucide-react"
@@ -19,11 +20,17 @@ export default function ResetPasswordPage() {
   const [tokenValid, setTokenValid] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const token = searchParams.get('token')
+  const { resolvedTheme } = useTheme()
+  const token = searchParams?.get('token')
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (!token) {
@@ -114,28 +121,47 @@ export default function ResetPasswordPage() {
 
   if (tokenValid === null) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex items-center justify-center p-4">
-        <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 w-full max-w-md border border-gray-700">
+      <div className="min-h-screen bg-background/95 backdrop-blur flex items-center justify-center p-4">
+        <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-8 w-full max-w-md border border-border">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto"></div>
-            <p className="text-gray-300 mt-4">Validating reset token...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground mt-4">Validating reset token...</p>
           </div>
         </div>
       </div>
     )
   }
 
+  // Show loading state while theme is being resolved
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="animate-pulse">
+          <div className="h-8 bg-muted rounded mb-4 w-48"></div>
+          <div className="h-4 bg-muted rounded mb-8 w-32"></div>
+          <div className="space-y-4">
+            <div className="h-12 bg-muted rounded"></div>
+            <div className="h-12 bg-muted rounded"></div>
+            <div className="h-12 bg-muted rounded"></div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const isDark = resolvedTheme === "dark"
+
   if (tokenValid === false) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex items-center justify-center p-4">
-        <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 w-full max-w-md border border-gray-700">
+      <div className="min-h-screen bg-background/95 backdrop-blur flex items-center justify-center p-4">
+        <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-8 w-full max-w-md border border-border">
           <div className="text-center">
-            <XCircle className="h-16 w-16 text-red-400 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-white mb-4">Invalid Reset Link</h1>
-            <p className="text-gray-300 mb-6">{error}</p>
+            <XCircle className="h-16 w-16 mx-auto mb-4 text-destructive" />
+            <h1 className="text-2xl font-bold mb-4 text-foreground">Invalid Reset Link</h1>
+            <p className="mb-6 text-muted-foreground">{error}</p>
             <Button 
               onClick={() => router.push('/auth')}
-              className="w-full bg-blue-600 hover:bg-blue-700"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               Back to Login
             </Button>
@@ -147,15 +173,15 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex items-center justify-center p-4">
-        <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 w-full max-w-md border border-gray-700">
+      <div className="min-h-screen bg-background/95 backdrop-blur flex items-center justify-center p-4">
+        <div className="bg-card/80 backdrop-blur-sm rounded-2xl p-8 w-full max-w-md border border-border">
           <div className="text-center">
-            <CheckCircle className="h-16 w-16 text-green-400 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-white mb-4">Password Reset Successful!</h1>
-            <p className="text-gray-300 mb-6">Your password has been updated successfully. You will be redirected to the login page shortly.</p>
+            <CheckCircle className="h-16 w-16 mx-auto mb-4 text-green-500" />
+            <h1 className="text-2xl font-bold mb-4 text-foreground">Password Reset Successful!</h1>
+            <p className="mb-6 text-muted-foreground">Your password has been updated successfully. You will be redirected to the login page shortly.</p>
             <Button 
               onClick={() => router.push('/auth')}
-              className="w-full bg-blue-600 hover:bg-blue-700"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               Go to Login
             </Button>
@@ -166,37 +192,37 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex items-center justify-center p-4">
-      <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 w-full max-w-md border border-gray-700">
+    <div className="min-h-screen bg-background/95 backdrop-blur flex items-center justify-center p-4 transition-colors duration-300">
+      <div className="w-full max-w-md space-y-6 bg-card/80 backdrop-blur-sm border border-border rounded-xl shadow-2xl p-8">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white mb-2">Reset Your Password</h1>
-          <p className="text-gray-300">Enter your new password below</p>
+          <h1 className="text-2xl font-bold mb-2 text-foreground">Reset Your Password</h1>
+          <p className="text-muted-foreground">Enter your new password below</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-              <p className="text-red-400 text-sm">{error}</p>
+            <div className="border rounded-lg p-3 bg-destructive/10 border-destructive/20">
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
 
           {/* New Password */}
           <div className="space-y-2">
-            <label className="text-gray-300 text-sm font-medium">New Password</label>
+            <label className="text-sm font-medium text-foreground">New Password</label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your new password"
-                className="pl-10 pr-10 bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                className="pl-10 pr-10 bg-background border-input text-foreground placeholder:text-muted-foreground focus:border-primary"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
@@ -205,32 +231,32 @@ export default function ResetPasswordPage() {
 
           {/* Confirm Password */}
           <div className="space-y-2">
-            <label className="text-gray-300 text-sm font-medium">Confirm New Password</label>
+            <label className="text-sm font-medium text-foreground">Confirm New Password</label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-              <Input
-                type={showConfirmPassword ? "text" : "password"}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm your new password"
-                className="pl-10 pr-10 bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300"
-              >
-                {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
-            </div>
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm your new password"
+                  className="pl-10 pr-10 bg-background border-input text-foreground placeholder:text-muted-foreground focus:border-primary"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
           </div>
 
           {/* Submit Button */}
           <Button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition-colors"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-3 rounded-lg transition-colors"
           >
             {isLoading ? (
               <div className="flex items-center justify-center">
@@ -247,7 +273,7 @@ export default function ResetPasswordPage() {
         <div className="text-center mt-6">
           <button
             onClick={() => router.push('/auth')}
-            className="text-blue-400 hover:text-blue-300 text-sm transition-colors"
+            className="text-sm transition-colors text-muted-foreground hover:text-primary"
           >
             Back to Login
           </button>

@@ -28,7 +28,7 @@ export const sendVerificationEmail = async (
   try {
     const transporter = createTransporter()
     
-    const verificationUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://72.60.211.237'}/verify-email?token=${verificationToken}`
+    const verificationUrl = `http://72.60.211.237/verify-email?token=${verificationToken}`
     
     const mailOptions = {
       from: process.env.SMTP_FROM || `"GKICKS Shop" <${process.env.SMTP_USER || process.env.GMAIL_USER}>`,
@@ -72,7 +72,7 @@ export const sendVerificationEmail = async (
               <p>If you didn't create an account with GKICKS Shop, please ignore this email.</p>
             </div>
             <div class="footer">
-              <p>© 2025 GKICKS Shop. All rights reserved.</p>
+              <p>© 2024-2025 GKICKS Shop. All rights reserved.</p>
               <p>This is an automated email, please do not reply.</p>
             </div>
           </div>
@@ -92,7 +92,7 @@ export const sendVerificationEmail = async (
         
         If you didn't create an account with GKICKS Shop, please ignore this email.
         
-        © 2025 GKICKS Shop. All rights reserved.
+        © 2024-2025 GKICKS Shop. All rights reserved.
       `
     }
 
@@ -152,12 +152,12 @@ export const sendWelcomeEmail = async (
                 <li>Manage your profile</li>
               </ul>
               
-              <a href="${process.env.NEXT_PUBLIC_BASE_URL || 'http://72.60.211.237'}" class="button">Start Shopping</a>
+              <a href="http://72.60.211.237" class="button">Start Shopping</a>
               
               <p>Thank you for choosing GKICKS Shop for your sneaker needs!</p>
             </div>
             <div class="footer">
-              <p>© 2025 GKICKS Shop. All rights reserved.</p>
+              <p>© 2024-2025 GKICKS Shop. All rights reserved.</p>
               <p>Need help? Contact us at kurab1983@gmail.com</p>
             </div>
           </div>
@@ -173,11 +173,11 @@ export const sendWelcomeEmail = async (
         
         You can now browse our premium sneaker collection, add items to your wishlist, make secure purchases, track your orders, and manage your profile.
         
-        Visit: ${process.env.NEXT_PUBLIC_BASE_URL || 'http://72.60.211.237'}
+        Visit: http://72.60.211.237
         
         Thank you for choosing GKICKS Shop!
         
-        © 2025 GKICKS Shop. All rights reserved.
+        © 2024-2025 GKICKS Shop. All rights reserved.
       `
     }
 

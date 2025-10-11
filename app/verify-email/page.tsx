@@ -18,9 +18,9 @@ export default function VerifyEmailPage() {
   const { toast } = useToast()
 
   useEffect(() => {
-    const token = searchParams.get('token')
-    const error = searchParams.get('error')
-    const statusParam = searchParams.get('status')
+    const token = searchParams?.get('token')
+  const error = searchParams?.get('error')
+  const statusParam = searchParams?.get('status')
 
     // Handle URL parameters from GET request redirect
     if (error) {
@@ -53,7 +53,7 @@ export default function VerifyEmailPage() {
           localStorage.setItem('email_verified', 'true')
           
           // Check if auth token is provided in URL
-          const authToken = searchParams.get('token')
+          const authToken = searchParams?.get('token')
           if (authToken) {
             localStorage.setItem('auth_token', authToken)
           }
