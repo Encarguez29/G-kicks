@@ -34,26 +34,24 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <link 
-          rel="preload" 
-          href="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js" 
-          as="script" 
-          crossOrigin="anonymous"
-        />
-        <Script 
-          src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"
-          strategy="beforeInteractive"
-          type="module"
-        />
-        <Providers>
+    <div className={inter.className}>
+      <link 
+        rel="preload" 
+        href="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js" 
+        as="script" 
+        crossOrigin="anonymous"
+      />
+      <Script 
+        src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"
+        strategy="beforeInteractive"
+        type="module"
+      />
+      <Providers>
           <Header />
-          {children}
-          <Footer />
-          <Toaster />
-        </Providers>
-      </body>
-    </html>
+        {children}
+        <Footer />
+        <Toaster />
+      </Providers>
+    </div>
   )
 }

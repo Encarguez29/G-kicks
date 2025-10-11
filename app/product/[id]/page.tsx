@@ -24,7 +24,7 @@ import type { Product } from "@/lib/product-data"
 
 export default function ProductPage() {
   const params = useParams()
-  const productId = Number(params.id)
+  const productId = Number(params?.id)
   const [mounted, setMounted] = useState(false)
   const [product, setProduct] = useState<Product | null>(null)
   const { addItem } = useCart()

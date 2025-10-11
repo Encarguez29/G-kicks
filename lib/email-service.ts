@@ -842,7 +842,7 @@ export async function sendEmailRecoveryNotification(
             </p>
             
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth" 
+              <a href="http://72.60.211.237/auth" 
                  style="background: #ff7b00; color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
                 Sign In Now
               </a>
@@ -870,7 +870,7 @@ Account Recovery Confirmation: Your account has been found and this recovery ema
 
 If you're having trouble accessing your account, you can use the password reset feature or contact our support team.
 
-Sign in at: ${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth
+Sign in at: http://72.60.211.237/auth
 
 If you didn't request this account recovery, please contact our support team immediately.
 

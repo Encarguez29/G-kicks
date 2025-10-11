@@ -135,7 +135,7 @@ export default function AdminOrdersPage() {
 
   // Handle highlight parameter from URL
   useEffect(() => {
-    const highlightId = searchParams.get('highlight')
+    const highlightId = searchParams?.get('highlight')
     if (highlightId) {
       setHighlightOrderId(highlightId)
       // Remove highlight after 3 seconds

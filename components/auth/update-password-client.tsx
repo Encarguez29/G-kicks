@@ -27,7 +27,7 @@ export default function UpdatePasswordClient() {
   const { toast } = useToast()
 
   useEffect(() => {
-    const tokenFromUrl = searchParams.get('token')
+    const tokenFromUrl = searchParams?.get('token')
     if (tokenFromUrl) {
       setToken(tokenFromUrl)
     } else if (!loading && !user) {

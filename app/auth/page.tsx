@@ -49,7 +49,7 @@ export default function AuthPage() {
     setMounted(true)
     
     // Check for resend verification action
-    const action = searchParams.get('action')
+    const action = searchParams?.get('action')
     if (action === 'resend-verification') {
       setShowResendVerification(true)
     }
