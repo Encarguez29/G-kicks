@@ -198,7 +198,9 @@ export default function POSPage() {
           items: transaction.items,
           total: transaction.total,
           paymentMethod: transaction.paymentMethod,
-          customerName: transaction.customerName
+          customerName: transaction.customerName,
+          discount: (transaction as any).discount ?? 0,
+          tax: (transaction as any).tax ?? 0,
         }),
       })
       

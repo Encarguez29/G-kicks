@@ -245,7 +245,7 @@ export default function CarouselManagement() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto p-4 sm:p-6">
         <div className="flex items-center justify-center h-64">
           <div className="text-lg">Loading carousel slides...</div>
         </div>
@@ -254,12 +254,12 @@ export default function CarouselManagement() {
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Carousel Management</h1>
+    <div className="container mx-auto p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold">Carousel Management</h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={resetForm}>
+            <Button onClick={resetForm} size="sm">
               <Plus className="w-4 h-4 mr-2" />
               Add New Slide
             </Button>
@@ -415,20 +415,20 @@ export default function CarouselManagement() {
           </Card>
         ) : (
           slides.map((slide) => (
-            <Card key={slide.id}>
+            <Card key={slide.id} className="overflow-hidden">
               <CardHeader>
-                <div className="flex justify-between items-start">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
                   <div>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="text-lg sm:text-xl flex flex-col sm:flex-row sm:items-center gap-2">
                       {slide.title}
-                      <Badge variant={slide.isActive ? "default" : "secondary"}>
+                      <Badge className="text-[11px] px-2 py-0.5 sm:text-xs" variant={slide.isActive ? "default" : "secondary"}>
                         {slide.isActive ? "Active" : "Inactive"}
                       </Badge>
-                      <Badge variant="outline">Order: {slide.order}</Badge>
+                      <Badge className="text-[11px] px-2 py-0.5 sm:text-xs" variant="outline">Order: {slide.order}</Badge>
                     </CardTitle>
                     <p className="text-sm text-gray-600 mt-1">{slide.subtitle}</p>
                   </div>
-                  <div className="flex space-x-2">
+                  <div className="flex flex-wrap gap-2 sm:flex-nowrap">
                     <Button
                       size="sm"
                       variant="outline"
@@ -457,11 +457,11 @@ export default function CarouselManagement() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4`}>
                   <div>
                     <p className="text-sm text-gray-600 mb-2">{slide.description}</p>
                     <p className="text-sm"><strong>CTA:</strong> {slide.ctaText}</p>
-                    <p className="text-sm"><strong>Image:</strong> {slide.image}</p>
+                    <p className="text-sm break-all sm:break-normal"><strong>Image:</strong> {slide.image}</p>
                   </div>
                   <div className={`h-20 rounded-lg bg-gradient-to-r ${slide.bgGradient}`}></div>
                 </div>

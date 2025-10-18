@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/database/mysql'
 import jwt from 'jsonwebtoken'
 
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret'
+
 // GET - Fetch all support conversations for admin
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +19,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
+    const decoded = jwt.verify(token, JWT_SECRET) as any
     if (decoded.role !== 'admin' && decoded.role !== 'staff') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -87,6 +89,54 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error creating conversation:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// PUT - Update conversation (e.g., archive/close, change status)
+export async function PUT(request: NextRequest) {
+  try {
+    const { conversation_id, status } = await request.json()
+
+    if (!conversation_id) {
+      return NextResponse.json(
+        { error: 'Conversation ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Verify admin authentication - check both cookies and headers
+    let token = request.cookies.get('auth-token')?.value
+    if (!token) {
+      const authHeader = request.headers.get('authorization')
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7)
+      }
+    }
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET) as any
+    if (decoded.role !== 'admin' && decoded.role !== 'staff') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const allowedStatuses = new Set(['open', 'in_progress', 'resolved', 'closed'])
+    const newStatus = typeof status === 'string' && allowedStatuses.has(status) ? status : 'closed'
+
+    await executeQuery(
+      'UPDATE support_conversations SET status = ?, updated_at = NOW() WHERE id = ?',
+      [newStatus, conversation_id]
+    )
+
+    return NextResponse.json({ success: true, status: newStatus })
+
+  } catch (error) {
+    console.error('Error updating conversation:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

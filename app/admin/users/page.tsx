@@ -287,14 +287,14 @@ export default function AdminUsersPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">User Management</h1>
           <p className="text-muted-foreground mt-2">
             Create and manage user accounts for the GKicks database
           </p>
         </div>
-        <Badge variant="outline" className="px-3 py-1">
+        <Badge variant="outline" className="px-3 py-1 mt-2 sm:mt-0">
           <Users className="w-4 h-4 mr-2" />
           {adminUsers.length} Users
         </Badge>
@@ -313,16 +313,16 @@ export default function AdminUsersPage() {
       )}
 
       <Tabs defaultValue="create" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="create" className="flex items-center gap-2">
+        <TabsList className="flex flex-wrap gap-2">
+          <TabsTrigger value="create" className="flex items-center gap-2 flex-1 sm:flex-none">
             <UserPlus className="w-4 h-4" />
             Create User
           </TabsTrigger>
-          <TabsTrigger value="manage" className="flex items-center gap-2">
+          <TabsTrigger value="manage" className="flex items-center gap-2 flex-1 sm:flex-none">
             <Users className="w-4 h-4" />
             Manage Users
           </TabsTrigger>
-          <TabsTrigger value="admin" className="flex items-center gap-2">
+          <TabsTrigger value="admin" className="flex items-center gap-2 flex-1 sm:flex-none">
             <Shield className="w-4 h-4" />
             Admin Users
           </TabsTrigger>
@@ -474,19 +474,19 @@ export default function AdminUsersPage() {
               ) : (
                 <div className="space-y-4">
                   {adminUsers.map((user) => (
-                    <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <div>
-                            <h3 className="font-medium">
-                              {user.first_name} {user.last_name}
-                            </h3>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
-                            {user.phone && (
-                              <p className="text-sm text-muted-foreground">{user.phone}</p>
-                            )}
-                          </div>
-                          <div className="flex gap-2">
+                    <div key={user.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border rounded-lg">
+                       <div className="flex-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                           <div>
+                             <h3 className="font-medium">
+                               {user.first_name} {user.last_name}
+                             </h3>
+                             <p className="text-sm text-muted-foreground">{user.email}</p>
+                             {user.phone && (
+                               <p className="text-sm text-muted-foreground">{user.phone}</p>
+                             )}
+                           </div>
+                          <div className="flex gap-2 mt-2 sm:mt-0">
                             <Badge variant={user.is_active ? "default" : "secondary"}>
                               {user.is_active ? "Active" : "Inactive"}
                             </Badge>
@@ -497,7 +497,7 @@ export default function AdminUsersPage() {
                           Created: {new Date(user.created_at).toLocaleDateString()}
                         </div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 mt-2 sm:mt-0">
                         {user.is_active && (
                           <Button
                             variant="outline"
@@ -661,46 +661,46 @@ export default function AdminUsersPage() {
                 ) : (
                   <div className="space-y-4">
                     {staffAdminUsers.map((admin) => (
-                      <div key={admin.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-medium">{admin.first_name} {admin.last_name}</h3>
-                            <Badge variant={admin.role === 'admin' ? 'destructive' : 'secondary'}>
-                              {admin.role}
-                            </Badge>
-                            {admin.is_active && (
-                              <Badge variant="outline" className="text-green-600 border-green-600">
-                                Active
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground">{admin.email}</p>
-                          <p className="text-sm text-muted-foreground">@{admin.username}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {/* TODO: Add edit functionality */}}
-                            disabled={loading}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setUserToArchive({...admin, is_admin: false} as AdminUser);
-                              setIsArchiveDialogOpen(true);
-                            }}
-                            disabled={loading}
-                            className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:text-orange-300 dark:hover:bg-orange-950"
-                          >
-                            <Archive className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      <div key={admin.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border rounded-lg">
+                         <div className="flex-1">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                             <h3 className="font-medium">{admin.first_name} {admin.last_name}</h3>
+                             <Badge variant={admin.role === 'admin' ? 'destructive' : 'secondary'}>
+                               {admin.role}
+                             </Badge>
+                             {admin.is_active && (
+                               <Badge variant="outline" className="text-green-600 border-green-600">
+                                 Active
+                               </Badge>
+                             )}
+                           </div>
+                           <p className="text-sm text-muted-foreground">{admin.email}</p>
+                           <p className="text-sm text-muted-foreground">@{admin.username}</p>
+                         </div>
+                        <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                           <Button
+                             variant="outline"
+                             size="sm"
+                             onClick={() => {/* TODO: Add edit functionality */}}
+                             disabled={loading}
+                           >
+                             <Edit className="w-4 h-4" />
+                           </Button>
+                           <Button
+                             variant="outline"
+                             size="sm"
+                             onClick={() => {
+                               setUserToArchive({...admin, is_admin: false} as AdminUser);
+                               setIsArchiveDialogOpen(true);
+                             }}
+                             disabled={loading}
+                             className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:text-orange-300 dark:hover:bg-orange-950"
+                           >
+                             <Archive className="w-4 h-4" />
+                           </Button>
+                         </div>
+                       </div>
+                     ))}
                   </div>
                 )}
               </CardContent>

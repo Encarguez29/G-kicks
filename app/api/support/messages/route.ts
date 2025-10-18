@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/database/mysql'
 import jwt from 'jsonwebtoken'
 
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret'
+
 // GET - Fetch messages for a specific conversation
 export async function GET(request: NextRequest) {
   try {
@@ -27,7 +29,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
+    let decoded: any
+    try {
+      decoded = jwt.verify(token, JWT_SECRET) as any
+    } catch (jwtError) {
+      return NextResponse.json({ error: 'Invalid authentication token' }, { status: 401 })
+    }
 
     // Fetch messages for the conversation
     const messages = await executeQuery(`
@@ -89,7 +96,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
+    let decoded: any
+    try {
+      decoded = jwt.verify(token, JWT_SECRET) as any
+    } catch (jwtError) {
+      return NextResponse.json({ error: 'Invalid authentication token' }, { status: 401 })
+    }
     
     let senderName = ''
     let senderEmail = ''

@@ -87,6 +87,28 @@ export async function GET(request: NextRequest) {
     const summaryResults = await executeQuery(summaryQuery, params) as any[]
     const summary = summaryResults[0]
 
+    // Compute total tax over the same date range directly from transactions
+    let taxWhereClause = "WHERE t.status = 'completed'"
+    const taxParams: any[] = []
+    if (date) {
+      taxWhereClause += ' AND t.transaction_date = ?'
+      taxParams.push(date)
+    } else if (startDate && endDate) {
+      taxWhereClause += ' AND t.transaction_date BETWEEN ? AND ?'
+      taxParams.push(startDate, endDate)
+    } else {
+      taxWhereClause += ' AND t.transaction_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)'
+    }
+
+    const taxSummaryQuery = `
+      SELECT COALESCE(SUM(GREATEST(t.total_amount - t.subtotal, 0)), 0.00) AS total_tax
+      FROM pos_transactions t
+      ${taxWhereClause}
+    `
+
+    const taxSummaryResults = await executeQuery(taxSummaryQuery, taxParams) as any[]
+    const totalTax = parseFloat(taxSummaryResults?.[0]?.total_tax || '0')
+
     return NextResponse.json({
       dailySales: salesData,
       summary: {
@@ -98,7 +120,8 @@ export async function GET(request: NextRequest) {
         totalDigitalWalletSales: parseFloat(summary.total_digital_wallet_sales || '0'),
         avgDailySales: parseFloat(summary.avg_daily_sales || '0'),
         bestDaySales: parseFloat(summary.best_day_sales || '0'),
-        worstDaySales: parseFloat(summary.worst_day_sales || '0')
+        worstDaySales: parseFloat(summary.worst_day_sales || '0'),
+        totalTax
       }
     })
   } catch (error) {

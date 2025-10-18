@@ -16,6 +16,8 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
+import { useCart } from "@/contexts/cart-context"
+import { useWishlist } from "@/contexts/wishlist-context"
 import { LocationSelector } from "@/components/ui/location-selector"
 import {
   Camera,
@@ -62,11 +64,16 @@ interface ProfileData {
 
 export default function ProfilePage() {
   const { user, loading: authLoading, tokenReady, updateProfile, updateUserData } = useAuth()
+  // Attach cart and wishlist contexts for counts
+  const { state: cartState } = useCart()
+  const { state: wishlistState } = useWishlist()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [addresses, setAddresses] = useState<Address[]>([])
   const [addressLoading, setAddressLoading] = useState(false)
   const [currentAddressId, setCurrentAddressId] = useState<string | null>(null)
+  // Orders count state
+  const [ordersCount, setOrdersCount] = useState<number>(0)
 
   const [profileData, setProfileData] = useState<ProfileData>({
     first_name: "",
@@ -128,6 +135,41 @@ export default function ProfilePage() {
       fetchProfileData()
     }
   }, [user, authLoading, tokenReady, profileData.first_name, profileData.last_name])
+
+  // Fetch total orders count
+  useEffect(() => {
+    const fetchOrdersCount = async () => {
+      if (!tokenReady || !user) {
+        setOrdersCount(0)
+        return
+      }
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
+      if (!token) {
+        setOrdersCount(0)
+        return
+      }
+      try {
+        const response = await fetch('/api/orders', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          cache: 'no-store',
+        })
+        if (response.ok) {
+          const data = await response.json()
+          setOrdersCount(Array.isArray(data) ? data.length : 0)
+        } else {
+          setOrdersCount(0)
+        }
+      } catch (error) {
+        console.error('Error fetching orders count:', error)
+        setOrdersCount(0)
+      }
+    }
+    fetchOrdersCount()
+  }, [tokenReady, user?.id])
 
   const fetchProfileData = async () => {
     if (!user) return
@@ -384,10 +426,22 @@ export default function ProfilePage() {
     try {
       const token = localStorage.getItem('auth_token')
       
+      // Validate and normalize phone to 11 digits
+      const cleanedPhone = profileData.phone.replace(/\D/g, '');
+      if (cleanedPhone.length !== 11) {
+        toast({
+          title: "Invalid phone number",
+          description: "Please enter exactly 11 digits.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       const requestBody = {
         first_name: profileData.first_name.trim(),
         last_name: profileData.last_name.trim(),
-        phone: profileData.phone.trim(),
+        phone: cleanedPhone,
         birthdate: profileData.birthdate || '',
         gender: profileData.gender || '',
         bio: profileData.bio.trim(),
@@ -675,21 +729,21 @@ export default function ProfilePage() {
                       <Heart className="h-4 w-4" />
                       Wishlist Items
                     </span>
-                    <Badge variant="secondary">0</Badge>
+                    <Badge variant="secondary">{wishlistState.itemCount}</Badge>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="flex items-center gap-2 text-muted-foreground">
                       <ShoppingCart className="h-4 w-4" />
                       Cart Items
                     </span>
-                    <Badge variant="secondary">0</Badge>
+                    <Badge variant="secondary">{cartState.itemCount}</Badge>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="flex items-center gap-2 text-muted-foreground">
                       <Package className="h-4 w-4" />
                       Total Orders
                     </span>
-                    <Badge variant="secondary">0</Badge>
+                    <Badge variant="secondary">{ordersCount}</Badge>
                   </div>
                 </div>
 
@@ -778,9 +832,16 @@ export default function ProfilePage() {
                         </Label>
                         <Input
                           id="phone"
+                          type="tel"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={11}
                           value={profileData.phone}
-                          onChange={(e) => setProfileData((prev) => ({ ...prev, phone: e.target.value }))}
-                          placeholder="+63 9XX XXX XXXX"
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/\D/g, '').slice(0, 11);
+                            setProfileData((prev) => ({ ...prev, phone: digits }));
+                          }}
+                          placeholder="Enter 11-digit mobile number (e.g., 09XXXXXXXXX)"
                         />
                       </div>
                       <div className="space-y-2">

@@ -799,15 +799,16 @@ export default function InventoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground space-y-6 p-6">
-      <div className="flex justify-between items-center">
+    <div className="min-h-screen bg-background text-foreground space-y-6 p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-primary">Product Inventory</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary">Product Inventory</h1>
           <p className="text-muted-foreground">Manage your product stock levels and details</p>
         </div>
         <div className="flex gap-2">
           <Button
             onClick={exportToExcel}
+            size="sm"
             variant="outline"
             className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
           >
@@ -819,6 +820,7 @@ export default function InventoryPage() {
               resetForm()
               setIsAddDialogOpen(true)
             }}
+            size="sm"
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -835,9 +837,9 @@ export default function InventoryPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">In Stock</p>
-                <p className="text-2xl font-bold text-green-500">{stockStats.inStock}</p>
+                <p className="text-xl sm:text-2xl font-bold text-green-500">{stockStats.inStock}</p>
               </div>
-              <Package className="h-8 w-8 text-green-500" />
+              <Package className="h-6 w-6 sm:h-8 sm:w-8 text-green-500" />
             </div>
           </CardContent>
         </Card>
@@ -847,9 +849,9 @@ export default function InventoryPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Low Stock</p>
-                <p className="text-2xl font-bold text-yellow-500">{stockStats.lowStock}</p>
+                <p className="text-xl sm:text-2xl font-bold text-yellow-500">{stockStats.lowStock}</p>
               </div>
-              <TrendingDown className="h-8 w-8 text-yellow-500" />
+              <TrendingDown className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-500" />
             </div>
           </CardContent>
         </Card>
@@ -859,9 +861,9 @@ export default function InventoryPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Out of Stock</p>
-                <p className="text-2xl font-bold text-red-500">{stockStats.outOfStock}</p>
+                <p className="text-xl sm:text-2xl font-bold text-red-500">{stockStats.outOfStock}</p>
               </div>
-              <AlertTriangle className="h-8 w-8 text-red-500" />
+              <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8 text-red-500" />
             </div>
           </CardContent>
         </Card>
@@ -899,7 +901,7 @@ export default function InventoryPage() {
       )}
 
       {/* Search and Filter */}
-      <div className="flex gap-4 items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
@@ -910,7 +912,7 @@ export default function InventoryPage() {
           />
         </div>
         <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className="w-48 bg-card border-border text-foreground">
+          <SelectTrigger className="w-full sm:w-48 bg-card border-border text-foreground">
             <SelectValue placeholder="Filter by category" />
           </SelectTrigger>
           <SelectContent>
@@ -921,7 +923,7 @@ export default function InventoryPage() {
           </SelectContent>
         </Select>
         <Select value={stockFilter} onValueChange={setStockFilter}>
-          <SelectTrigger className="w-48 bg-card border-border text-foreground">
+          <SelectTrigger className="w-full sm:w-48 bg-card border-border text-foreground">
             <Package className="h-4 w-4 mr-2" />
             <SelectValue placeholder="Filter by stock" />
           </SelectTrigger>
@@ -951,8 +953,8 @@ export default function InventoryPage() {
 
       {/* Products Table */}
       <Card className="bg-card border-border">
-        <CardContent className="p-0">
-          <Table>
+        <CardContent className="p-0 pb-2 overflow-x-scroll" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
+          <Table className="min-w-[800px] text-xs sm:text-sm">
             <TableHeader>
               <TableRow className="border-border">
                 <TableHead className="text-foreground">Product</TableHead>
@@ -980,7 +982,7 @@ export default function InventoryPage() {
                             `/images/${product.name?.toLowerCase().replace(/\s+/g, "-")}.png`
                           }
                           alt={product.name}
-                          className="w-12 h-12 object-cover rounded"
+                          className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded"
                           onError={(e) => {
                             e.currentTarget.src = "/placeholder.svg?height=48&width=48"
                           }}

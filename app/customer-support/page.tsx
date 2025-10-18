@@ -16,7 +16,6 @@ import {
   CheckCircle, 
   Truck,
   ArrowLeft,
-  Phone,
   Mail,
   HelpCircle
 } from "lucide-react"
@@ -467,13 +466,7 @@ export default function CustomerSupportPage() {
             
             <div className="flex items-center space-x-2">
               <Button variant="outline" size="sm" asChild>
-                <Link href="tel:+1234567890">
-                  <Phone className="h-4 w-4 mr-2" />
-                  Call Us
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="mailto:support@gkicks.com">
+                <Link href="https://mail.google.com/mail/?view=cm&fs=1&to=kurab1983@gmail.com" target="_blank" rel="noopener noreferrer">
                   <Mail className="h-4 w-4 mr-2" />
                   Email
                 </Link>

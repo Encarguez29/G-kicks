@@ -167,12 +167,34 @@ export async function GET(request: NextRequest) {
       ORDER BY updated_at DESC
     `)
 
+    // Get archived support conversations (status = 'closed')
+    const [archivedMessages] = await connection.execute(`
+      SELECT 
+        id,
+        CONCAT('Conversation #', id, ' - ', COALESCE(subject, 'Support Request')) as name,
+        'message' as type,
+        updated_at as archived_at,
+        'System' as archived_by,
+        'Conversation closed' as reason,
+        JSON_OBJECT(
+          'user_email', user_email,
+          'user_name', COALESCE(user_name, ''),
+          'subject', COALESCE(subject, 'Support Request'),
+          'status', status,
+          'last_message_at', last_message_at
+        ) as details
+      FROM support_conversations
+      WHERE status = 'closed'
+      ORDER BY updated_at DESC
+    `)
+
     // Combine all archived items
     const allArchivedItems = [
       ...(archivedProducts as any[]),
       ...(archivedOrders as any[]),
       ...(archivedUsers as any[]),
-      ...(archivedCarousels as any[])
+      ...(archivedCarousels as any[]),
+      ...(archivedMessages as any[])
     ]
 
     // Sort by archived_at date (most recent first)
@@ -190,7 +212,8 @@ export async function GET(request: NextRequest) {
         products: (archivedProducts as any[]).length,
         orders: (archivedOrders as any[]).length,
         users: (archivedUsers as any[]).length,
-        carousel: (archivedCarousels as any[]).length
+        carousel: (archivedCarousels as any[]).length,
+        messages: (archivedMessages as any[]).length
       }
     })
 

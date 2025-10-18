@@ -5,20 +5,22 @@ import { db } from '@/lib/database'
 import { RowDataPacket, ResultSetHeader } from 'mysql2'
 import jwt from 'jsonwebtoken'
 
+export const dynamic = 'force-dynamic'
+
 interface Order extends RowDataPacket {
   id: string
   customer_email: string
   customer_phone: string
   shipping_address: string
   total_amount: number
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+  status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
   created_at: string
   updated_at: string
 }
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
     // Check for JWT token in Authorization header first
@@ -51,7 +53,7 @@ export async function PATCH(
     }
 
     const { status } = await request.json()
-    const { id: orderId } = await params
+    const { id: orderId } = params
 
     if (!status || !['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'].includes(status)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
@@ -140,7 +142,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
     // Check for JWT token in Authorization header or cookies
@@ -205,7 +207,7 @@ export async function DELETE(
     
     console.log('🔐 Archive request authorized for user:', userEmail)
 
-    const { id: orderId } = await params
+    const { id: orderId } = params
 
     console.log('🗑️ API: Archiving order:', orderId)
 

@@ -68,8 +68,25 @@ export function ReviewForm({ productName, productId, onSubmitReview, onCancel }:
 
     try {
       console.log('📝 Submitting review for product:', productId)
-      
-      // Submit review to API
+
+      // 1) Upload photos if any, get public URLs
+      let photoUrls: string[] = []
+      if (photos.length > 0) {
+        const formData = new FormData()
+        photos.forEach((file) => formData.append('files', file))
+        const uploadRes = await fetch('/api/upload-review-photos', {
+          method: 'POST',
+          body: formData,
+        })
+        const uploadData = await uploadRes.json()
+        if (!uploadRes.ok) {
+          throw new Error(uploadData.error || 'Failed to upload review photos')
+        }
+        photoUrls = uploadData.urls || []
+        console.log('✅ Uploaded review photos:', photoUrls)
+      }
+
+      // 2) Submit review with photo URLs
       const response = await fetch('/api/reviews', {
         method: 'POST',
         headers: {
@@ -81,7 +98,7 @@ export function ReviewForm({ productName, productId, onSubmitReview, onCancel }:
           comment: comment.trim(),
           userName: userName.trim(),
           email: email.trim() || undefined,
-          photos: [], // TODO: Handle photo upload to cloud storage
+          photos: photoUrls,
         }),
       })
 
@@ -92,7 +109,7 @@ export function ReviewForm({ productName, productId, onSubmitReview, onCancel }:
       }
 
       console.log('✅ Review submitted successfully:', data)
-      
+
       // Call the parent callback to refresh reviews
       onSubmitReview({
         rating,

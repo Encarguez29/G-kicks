@@ -440,6 +440,13 @@ export default function OrdersPage() {
                       <p className="text-xs text-muted-foreground mt-1">Click to view full size</p>
                     </div>
                   )}
+
+                  {(selectedOrder.paymentMethod === "GCash" || selectedOrder.paymentMethod === "Maya") && selectedOrder.payment_reference && (
+                    <div className="mt-3">
+                      <span className="font-medium">Payment Reference:</span>
+                      <p className="text-sm mt-1">{selectedOrder.payment_reference}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 

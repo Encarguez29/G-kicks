@@ -55,10 +55,15 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('🔍 API: Fetching orders for user:', user.id)
-    
+
+    const prColumnCheck = await executeQuery(
+      "SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='orders' AND COLUMN_NAME='payment_reference'"
+    ) as any[]
+    const hasPaymentReferenceColumn = Number(prColumnCheck[0]?.cnt || 0) > 0
+    const prSelect = hasPaymentReferenceColumn ? 'payment_reference' : 'notes'
+
     // Fetch orders with proper field mapping
-    const orders = await executeQuery(
-      `SELECT 
+    const selectQuery = `SELECT 
         id,
         order_number,
         customer_email,
@@ -66,6 +71,7 @@ export async function GET(request: NextRequest) {
         payment_status,
         payment_method,
         payment_screenshot,
+        ${prSelect} as payment_reference,
         subtotal,
         tax_amount,
         shipping_amount,
@@ -76,9 +82,8 @@ export async function GET(request: NextRequest) {
         updated_at
       FROM orders 
       WHERE user_id = ? 
-      ORDER BY created_at DESC`,
-      [user.id]
-    ) as any[]
+      ORDER BY created_at DESC`
+    const orders = await executeQuery(selectQuery, [user.id]) as any[]
 
     // Fetch order items for each order
     const ordersWithItems = await Promise.all(
@@ -106,6 +111,18 @@ export async function GET(request: NextRequest) {
           price: Number(item.price)
         }))
 
+        const paymentReference = hasPaymentReferenceColumn
+          ? (order.payment_reference || null)
+          : (() => {
+              try {
+                const obj = order.payment_reference ? JSON.parse(order.payment_reference) : null
+                return obj?.payment_reference || null
+              } catch {
+                const match = String(order.payment_reference || '').match(/payment_reference\s*:\s*([A-Za-z0-9]+)/i)
+                return match?.[1] || null
+              }
+            })()
+
         return {
           ...order,
           // Convert numeric fields to proper numbers
@@ -117,6 +134,7 @@ export async function GET(request: NextRequest) {
           shipping_address: order.shipping_address ? JSON.parse(order.shipping_address) : null,
           // Map payment fields to match frontend interface
           paymentMethod: order.payment_method,
+          payment_reference: paymentReference,
           items: processedItems
         }
       })
@@ -157,6 +175,7 @@ export async function POST(request: NextRequest) {
       shipping_address,
       payment_method,
       payment_screenshot,
+      payment_reference,
       status = 'pending'
     } = body
 
@@ -258,14 +277,22 @@ export async function POST(request: NextRequest) {
     const discountAmount = 0
     const totalAmount = subtotal + taxAmount + shippingAmount - discountAmount
 
+    // Detect payment_reference column availability
+    const prColumnCheck = await executeQuery(
+      "SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='orders' AND COLUMN_NAME='payment_reference'"
+    ) as any[]
+    const hasPaymentReferenceColumn = Number(prColumnCheck[0]?.cnt || 0) > 0
+
     // Create the order
-    const result = await executeQuery(
-      `INSERT INTO orders (
-         user_id, customer_email, order_number, status, subtotal, tax_amount, 
+    let insertQuery = ''
+    let insertValues: any[] = []
+    if (hasPaymentReferenceColumn) {
+      insertQuery = `INSERT INTO orders (
+         user_id, customer_email, order_number, status, subtotal, tax_amount,
          shipping_amount, discount_amount, total_amount,
-         shipping_address, payment_method, payment_screenshot
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
+         shipping_address, payment_method, payment_screenshot, payment_reference
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      insertValues = [
         user.id,
         customer_email,
         orderNumber,
@@ -277,9 +304,32 @@ export async function POST(request: NextRequest) {
         totalAmount,
         JSON.stringify(shipping_address || {}),
         payment_method || null,
-        payment_screenshot || null
+        payment_screenshot || null,
+        payment_reference || null
       ]
-    ) as any
+    } else {
+      insertQuery = `INSERT INTO orders (
+         user_id, customer_email, order_number, status, subtotal, tax_amount,
+         shipping_amount, discount_amount, total_amount,
+         shipping_address, payment_method, payment_screenshot, notes
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      insertValues = [
+        user.id,
+        customer_email,
+        orderNumber,
+        status || 'pending',
+        subtotal,
+        taxAmount,
+        shippingAmount,
+        discountAmount,
+        totalAmount,
+        JSON.stringify(shipping_address || {}),
+        payment_method || null,
+        payment_screenshot || null,
+        payment_reference ? JSON.stringify({ payment_reference }) : null
+      ]
+    }
+    const result = await executeQuery(insertQuery, insertValues) as any
 
     const orderId = (result as any).insertId
 
@@ -329,7 +379,18 @@ export async function POST(request: NextRequest) {
     const parsedOrder = {
       ...order,
       shipping_address: order.shipping_address ? JSON.parse(order.shipping_address) : null,
-      items: orderItems
+      items: orderItems,
+      payment_reference: hasPaymentReferenceColumn
+        ? (order.payment_reference || null)
+        : (() => {
+            try {
+              const obj = order.notes ? JSON.parse(order.notes) : null
+              return obj?.payment_reference || null
+            } catch {
+              const match = String(order.notes || '').match(/payment_reference\s*:\s*([A-Za-z0-9]+)/i)
+              return match?.[1] || null
+            }
+          })()
     }
 
     // Send order receipt email

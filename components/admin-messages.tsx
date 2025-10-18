@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { MessageCircle, Send, User, Search, Filter, MoreVertical, X } from "lucide-react"
+import { MessageCircle, Send, User, Search, Filter, MoreVertical, X, ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -60,6 +60,23 @@ export function AdminMessages() {
   const [searchQuery, setSearchQuery] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  // Mobile responsiveness
+  const [isMobile, setIsMobile] = useState(false)
+  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(typeof window !== 'undefined' && window.innerWidth < 640)
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) {
+      setMobileView('list')
+    }
+  }, [isOpen])
+
   // Scroll to bottom when messages change
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -93,7 +110,8 @@ export function AdminMessages() {
             unread_count: conv.unread_count,
             last_message_at: conv.last_message_at
           }))
-          setConversations(formattedConversations)
+          // Exclude archived (closed) conversations from the list
+          setConversations(formattedConversations.filter(c => c.status !== 'closed'))
         }
       } catch (error) {
         console.error('Error fetching conversations:', error)
@@ -227,6 +245,73 @@ export function AdminMessages() {
     }
   }
 
+  const handleMarkAsRead = async () => {
+    if (!selectedConversation) return
+    try {
+      // Calling the messages endpoint marks customer messages as read for admins
+      await fetch(`/api/support/messages?conversation_id=${selectedConversation.id}`)
+
+      setConversations(prev =>
+        prev.map(conv =>
+          conv.id === selectedConversation.id
+            ? { ...conv, unreadCount: 0 }
+            : conv
+        )
+      )
+
+      setSelectedConversation(prev =>
+        prev ? {
+          ...prev,
+          unreadCount: 0,
+          messages: prev.messages.map(m => (
+            m.sender === 'admin' ? m : { ...m, read: true }
+          ))
+        } : null
+      )
+    } catch (err) {
+      console.error('Failed to mark as read', err)
+    }
+  }
+
+  const handleArchiveConversation = async () => {
+    if (!selectedConversation) return
+    try {
+      const res = await fetch('/api/support/conversations', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation_id: selectedConversation.id, status: 'closed' })
+      })
+      if (!res.ok) throw new Error('Archive request failed')
+
+      // Remove archived conversation from UI state immediately
+      setConversations(prev => prev.filter(conv => conv.id !== selectedConversation.id))
+      setSelectedConversation(null)
+    } catch (err) {
+      console.error('Failed to archive conversation', err)
+    }
+  }
+
+  const handleBlockUser = async () => {
+    if (!selectedConversation) return
+    try {
+      const res = await fetch('/api/support/block-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation_id: selectedConversation.id })
+      })
+      if (!res.ok) throw new Error('Block user request failed')
+
+      setConversations(prev =>
+        prev.map(conv => (
+          conv.id === selectedConversation.id ? { ...conv, status: 'closed' } : conv
+        ))
+      )
+      setSelectedConversation(prev => prev ? { ...prev, status: 'closed' } : null)
+    } catch (err) {
+      console.error('Failed to block user', err)
+    }
+  }
+
   const filteredConversations = conversations.filter(conv =>
     conv.participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     conv.participantEmail.toLowerCase().includes(searchQuery.toLowerCase())
@@ -263,25 +348,27 @@ export function AdminMessages() {
           )}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-[95vw] w-[95vw] h-[85vh] p-0 gap-0">
+      <DialogContent showClose={false} className="w-screen h-screen rounded-none p-0 gap-0 sm:max-w-[95vw] sm:w-[95vw] sm:h-[85vh]">
         <div className="flex h-full">
           {/* Conversations List */}
-          <div className="w-96 min-w-96 border-r border-border flex flex-col bg-muted/30">
+          <div className={`${isMobile ? (mobileView === 'list' ? 'block' : 'hidden') : 'block'} w-full sm:w-96 sm:min-w-96 border-r border-border flex flex-col bg-muted/30`}>
             <DialogHeader className="p-4 border-b border-border bg-background">
-              <DialogTitle className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <MessageCircle className="h-5 w-5 mr-2" />
-                  Messages
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsOpen(false)}
-                  className="h-6 w-6"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </DialogTitle>
+               <DialogTitle className="flex items-center justify-between">
+                 <div className="flex items-center">
+                   <MessageCircle className="h-5 w-5 mr-2" />
+                   Messages
+                 </div>
+                 <Button
+                   variant="ghost"
+                   size="icon"
+                   className="h-8 w-8"
+                   aria-label="Close messages"
+                   title="Close"
+                   onClick={() => setIsOpen(false)}
+                 >
+                   <X className="h-4 w-4" />
+                 </Button>
+               </DialogTitle>
             </DialogHeader>
             
             <div className="p-3 border-b border-border bg-background">
@@ -315,6 +402,7 @@ export function AdminMessages() {
                       onClick={() => {
                         setSelectedConversation(conversation)
                         loadConversationMessages(conversation.id)
+                        if (isMobile) setMobileView('chat')
                       }}
                     >
                       <div className="flex items-start space-x-3">
@@ -344,7 +432,7 @@ export function AdminMessages() {
                                 {conversation.participantType}
                               </Badge>
                               {conversation.unreadCount > 0 && (
-                                <Badge className="h-5 w-5 flex items-center justify-center p-0 text-xs bg-red-500">
+                                <Badge className="h-5 w-5 flex items-center justify-center p-0 text-xs bg-red-500 rounded-full">
                                   {conversation.unreadCount > 9 ? '9+' : conversation.unreadCount}
                                 </Badge>
                               )}
@@ -366,13 +454,24 @@ export function AdminMessages() {
           </div>
 
           {/* Chat Area */}
-          <div className="flex-1 flex flex-col min-w-0">
+          <div className={`${isMobile ? (mobileView === 'chat' ? 'flex' : 'hidden') : 'flex'} flex-1 flex-col min-w-0`}>
             {selectedConversation ? (
               <>
                 {/* Chat Header */}
-                <div className="p-4 border-b border-border bg-background">
+                <div className="p-3 sm:p-4 border-b border-border bg-background">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
+                      {isMobile && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 sm:hidden"
+                          onClick={() => setMobileView('list')}
+                          aria-label="Back to list"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Avatar className="h-9 w-9">
                         <AvatarFallback className={`text-xs font-medium ${
                           selectedConversation.participantType === "seller" 
@@ -387,23 +486,35 @@ export function AdminMessages() {
                         <p className="text-xs text-muted-foreground">{selectedConversation.participantEmail}</p>
                       </div>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
+                    <div className="flex items-center space-x-1">
+                      {isMobile && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 sm:hidden"
+                          aria-label="Close messages"
+                          onClick={() => setIsOpen(false)}
+                        >
+                          <X className="h-4 w-4" />
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Mark as read</DropdownMenuItem>
-                        <DropdownMenuItem>Archive conversation</DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600">Block user</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={handleMarkAsRead}>Mark as read</DropdownMenuItem>
+                          <DropdownMenuItem onClick={handleArchiveConversation}>Archive conversation</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                 </div>
 
                 {/* Messages */}
-                <ScrollArea className="flex-1 p-4" style={{ maxHeight: 'calc(85vh - 200px)' }}>
+                <ScrollArea className="flex-1 p-4">
                   <div className="space-y-4 pr-2">
                     {selectedConversation.messages.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
@@ -472,9 +583,10 @@ export function AdminMessages() {
                       onClick={handleSendMessage} 
                       disabled={!newMessage.trim()}
                       size="icon"
-                      className="h-10 w-10"
+                      variant={isMobile ? "ghost" : "default"}
+                      className="h-6 w-6 sm:h-8 sm:w-8 md:h-9 md:w-9 p-0 rounded-md"
                     >
-                      <Send className="h-4 w-4" />
+                      <Send className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                     </Button>
                   </div>
                 </div>

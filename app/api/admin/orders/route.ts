@@ -70,6 +70,12 @@ export async function GET(request: NextRequest) {
     }
     
     // Fetch orders with available information, excluding archived orders (cancelled and refunded)
+    const prColumnCheck = await executeQuery(
+      "SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='orders' AND COLUMN_NAME='payment_reference'"
+    ) as any[]
+    const hasPaymentReferenceColumn = Number(prColumnCheck[0]?.cnt || 0) > 0
+    const prSelect = hasPaymentReferenceColumn ? 'o.payment_reference' : 'o.notes'
+
     const orders = await executeQuery(`
       SELECT 
         o.id,
@@ -80,6 +86,7 @@ export async function GET(request: NextRequest) {
         o.payment_status,
         o.payment_method,
         o.payment_screenshot,
+        ${prSelect} as payment_reference,
         o.shipping_address,
         o.created_at,
         o.updated_at
@@ -112,6 +119,18 @@ export async function GET(request: NextRequest) {
           price: Number(item.price)
         }))
 
+        const paymentReference = hasPaymentReferenceColumn
+          ? (order.payment_reference || null)
+          : (() => {
+              try {
+                const obj = order.payment_reference ? JSON.parse(order.payment_reference) : null
+                return obj?.payment_reference || null
+              } catch {
+                const match = String(order.payment_reference || '').match(/payment_reference\s*:\s*([A-Za-z0-9]+)/i)
+                return match?.[1] || null
+              }
+            })()
+
         return {
           ...order,
           // Convert numeric fields to proper numbers
@@ -125,6 +144,7 @@ export async function GET(request: NextRequest) {
           customerEmail: order.customer_email || 'No email provided',
           // Map payment fields to match frontend interface
           paymentMethod: order.payment_method,
+          payment_reference: paymentReference,
           // Add items
           items: processedItems
         }

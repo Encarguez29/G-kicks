@@ -162,10 +162,21 @@ export async function POST(request: NextRequest) {
         console.log('🎠 Restore API: Carousel restore query prepared')
         break
 
+      case 'message':
+        // Restore support conversation by reopening it
+        query = `
+          UPDATE support_conversations 
+          SET status = 'open', updated_at = NOW() 
+          WHERE id = ? AND status = 'closed'
+        `
+        params = [id]
+        console.log('💬 Restore API: Message restore (support conversation) query prepared')
+        break
+
       default:
         console.log('❌ Restore API: Invalid type provided:', type)
         return NextResponse.json(
-          { success: false, error: 'Invalid type. Must be product, order, user, or carousel' },
+          { success: false, error: 'Invalid type. Must be product, order, user, carousel, or message' },
           { status: 400 }
         )
     }
