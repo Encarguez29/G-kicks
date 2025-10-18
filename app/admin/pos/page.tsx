@@ -72,6 +72,7 @@ export default function POSPage() {
   const [amountPaid, setAmountPaid] = useState(0)
   const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null)
   const [dailySales, setDailySales] = useState(0)
+  const [dailyTax, setDailyTax] = useState(0)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [stockMap, setStockMap] = useState<Record<string, number>>({});
   const [currentSession, setCurrentSession] = useState<any>(null)
@@ -205,11 +206,13 @@ export default function POSPage() {
         const data = await response.json()
         if (data.summary) {
           setDailySales(data.summary.totalGrossSales || 0)
+          setDailyTax(data.summary.totalTax || 0)
         }
       }
     } catch (error) {
       console.error("Error loading daily sales:", error)
       setDailySales(0)
+      setDailyTax(0)
     }
   }
 
@@ -264,7 +267,9 @@ export default function POSPage() {
         })),
         total: transaction.total,
         paymentMethod: transaction.paymentMethod,
-        customerName: transaction.customerName
+        customerName: transaction.customerName,
+        discount: getDiscountAmount(),
+        tax: getTaxAmount()
       }
       
       const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
@@ -439,7 +444,8 @@ export default function POSPage() {
   const getCartTotal = (): number => {
     const subtotal = getCartSubtotal()
     const discount = getDiscountAmount()
-    return Math.max(0, subtotal - discount)
+    const tax = Math.max(0, (subtotal - discount) * 0.12)
+    return Math.max(0, subtotal - discount + tax)
   }
 
   const getCartItemCount = (): number => {
@@ -457,7 +463,7 @@ export default function POSPage() {
     const paidAmount = isMultiPaymentMode ? getTotalPaidAmount() : amountPaid
     
     if (paidAmount < totalAmount) {
-      toast.error("Insufficient payment amount")
+      toast.error(`Insufficient payment. Remaining: ${formatCurrency(totalAmount - paidAmount)}`)
       return
     }
 
@@ -482,6 +488,7 @@ export default function POSPage() {
         ...transaction,
         subtotal: getCartSubtotal(),
         discount: getDiscountAmount(),
+        tax: getTaxAmount(),
         amountPaid: isMultiPaymentMode ? getTotalPaidAmount() : amountPaid,
         change: isMultiPaymentMode ? Math.max(0, getTotalPaidAmount() - totalAmount) : getChange(),
         cashier: 'Admin'
@@ -667,6 +674,13 @@ export default function POSPage() {
 
   const getDiscountAmount = (): number => {
     return appliedDiscount?.amount || 0
+  }
+
+  const getTaxAmount = (): number => {
+    const subtotal = getCartSubtotal()
+    const discount = getDiscountAmount()
+    const taxable = Math.max(0, subtotal - discount)
+    return Number((taxable * 0.12).toFixed(2))
   }
 
   const searchTransaction = async (transactionId: string) => {
@@ -1077,8 +1091,8 @@ export default function POSPage() {
               </div>
             ` : ''}
             <div class="total-line">
-              <span>Tax (0%):</span>
-              <span>₱0.00</span>
+              <span>Tax (12%):</span>
+              <span>₱${(transactionData.tax || 0).toFixed(2)}</span>
             </div>
             <div class="total-line final-total">
               <span>Total</span>
@@ -1145,7 +1159,7 @@ export default function POSPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mobile-container">
+      <div className="w-full max-w-none px-4 sm:px-6 lg:px-8">
         {/* Mobile Header */}
         {isMobile && (
           <div className="mobile-section py-4">
@@ -1226,6 +1240,12 @@ export default function POSPage() {
                 <p className="text-lg font-bold text-green-600">{formatCurrency(dailySales)}</p>
               </div>
               <div className="mobile-card text-center">
+                <p className="text-xs text-muted-foreground mb-1">Daily Sales (Tax Included 12%)</p>
+                <p className="text-lg font-bold text-orange-600">{formatCurrency(dailySales + dailyTax)}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="mobile-card text-center">
                 <p className="text-xs text-muted-foreground mb-1">Transactions</p>
                 <p className="text-lg font-bold text-blue-600">{transactions.length}</p>
               </div>
@@ -1263,15 +1283,21 @@ export default function POSPage() {
                 Start Shift
               </Button>
             )}
-            <Card className="p-4">
+            <Card className="p-4 w-[220px] sm:w-[240px]">
               <div className="text-center">
-                <p className="text-sm text-muted-foreground">Daily Sales</p>
+                <p title="Daily Sales" className="text-xs text-muted-foreground whitespace-normal break-words leading-tight">Daily Sales</p>
                 <p className="text-2xl font-bold text-green-600">{formatCurrency(dailySales)}</p>
               </div>
             </Card>
-            <Card className="p-4">
+            <Card className="p-4 w-[220px] sm:w-[240px]">
               <div className="text-center">
-                <p className="text-sm text-muted-foreground">Transactions</p>
+                <p title="Daily Sales (Tax Included 12%)" className="text-xs text-muted-foreground whitespace-normal break-words leading-tight">Daily Sales (Tax Included 12%)</p>
+                <p className="text-2xl font-bold text-orange-600">{formatCurrency(dailySales + dailyTax)}</p>
+              </div>
+            </Card>
+            <Card className="p-4 w-[220px] sm:w-[240px]">
+              <div className="text-center">
+                <p title="Transactions" className="text-xs text-muted-foreground whitespace-normal break-words leading-tight">Transactions</p>
                 <p className="text-2xl font-bold text-blue-600">{transactions.length}</p>
               </div>
             </Card>
@@ -1638,6 +1664,10 @@ export default function POSPage() {
                           <span className="text-sm text-green-600 dark:text-green-400">-{formatCurrency(getDiscountAmount())}</span>
                         </div>
                       )}
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Tax (12%):</span>
+                        <span className="text-sm text-foreground">{formatCurrency(getTaxAmount())}</span>
+                      </div>
                       <Separator />
                       <div className="flex justify-between items-center">
                         <span className="text-lg font-semibold text-foreground">Total:</span>
@@ -1768,22 +1798,37 @@ export default function POSPage() {
                               <Label htmlFor="amount-paid" className="text-foreground">
                                 Amount Paid
                               </Label>
-                              <Input
-                                id="amount-paid"
-                                type="number"
-                                value={amountPaid || ""}
-                                onChange={(e) => setAmountPaid(Number(e.target.value))}
-                                placeholder="0.00"
-                                min="0"
-                                step="0.01"
-                                className="bg-background border-border text-foreground placeholder-muted-foreground"
-                              />
-                              {amountPaid > 0 && (
-                                <div className="mt-2 text-sm text-foreground">
-                                  <p>Total: {formatCurrency(getCartTotal())}</p>
-                                  <p>Change: {formatCurrency(getChange())}</p>
-                                </div>
-                              )}
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  id="amount-paid"
+                                  type="number"
+                                  value={amountPaid || ""}
+                                  onChange={(e) => setAmountPaid(Number(e.target.value))}
+                                  placeholder="0.00"
+                                  min="0"
+                                  step="0.01"
+                                  className="flex-1 bg-background border-border text-foreground placeholder-muted-foreground"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setAmountPaid(Number(getCartTotal().toFixed(2)))}
+                                  className="shrink-0"
+                                >
+                                  Exact Amount
+                                </Button>
+                              </div>
+                              <div className="mt-2 text-sm text-foreground">
+                                <p>Total: {formatCurrency(getCartTotal())}</p>
+                                {amountPaid > 0 && (
+                                  amountPaid < getCartTotal() ? (
+                                    <p className="text-red-600">Remaining: {formatCurrency(getCartTotal() - amountPaid)}</p>
+                                  ) : (
+                                    <p>Change: {formatCurrency(getChange())}</p>
+                                  )
+                                )}
+                              </div>
                             </div>
                           )}
                           {!isMultiPaymentMode && (paymentMethod === "gcash" || paymentMethod === "maya") && (
@@ -1804,6 +1849,7 @@ export default function POSPage() {
                             </div>
                             <Button
                               onClick={processCheckout}
+                              disabled={isMultiPaymentMode ? (getTotalPaidAmount() < getCartTotal()) : (paymentMethod === 'cash' ? (amountPaid < getCartTotal()) : false)}
                               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                               size="lg"
                             >

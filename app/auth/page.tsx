@@ -44,6 +44,9 @@ export default function AuthPage() {
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [showForgotEmail, setShowForgotEmail] = useState(false)
   const [failedAttempts, setFailedAttempts] = useState(0)
+  // Password strength tracking
+  const [passwordStrength, setPasswordStrength] = useState<string>("")
+  const [passwordCriteria, setPasswordCriteria] = useState({ length: false, lower: false, upper: false, special: false })
 
   useEffect(() => {
     setMounted(true)
@@ -68,6 +71,25 @@ export default function AuthPage() {
       }
     }
   }, [user, loading])
+
+  // Compute password criteria and strength as the user types
+  useEffect(() => {
+    const length = password.length >= 8
+    const lower = /[a-z]/.test(password)
+    const upper = /[A-Z]/.test(password)
+    const special = /[^A-Za-z0-9]/.test(password)
+    setPasswordCriteria({ length, lower, upper, special })
+    const score = [length, lower, upper, special].filter(Boolean).length
+    if (!password) {
+      setPasswordStrength("")
+    } else if (score <= 2) {
+      setPasswordStrength("Weak")
+    } else if (score === 3) {
+      setPasswordStrength("Moderate")
+    } else {
+      setPasswordStrength("Strong")
+    }
+  }, [password])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -97,6 +119,22 @@ export default function AuthPage() {
         variant: "destructive",
       })
       return
+    }
+
+    // Enforce password policy for sign-up
+    if (isSignUp) {
+      const lengthOk = password.length >= 8
+      const lowerOk = /[a-z]/.test(password)
+      const upperOk = /[A-Z]/.test(password)
+      const specialOk = /[^A-Za-z0-9]/.test(password)
+      if (!(lengthOk && lowerOk && upperOk && specialOk)) {
+        toast({
+          title: "Password requirements not met",
+          description: "Use at least 8 characters with lowercase (a), uppercase (A), and a special character.",
+          variant: "destructive",
+        })
+        return
+      }
     }
 
     try {
@@ -131,8 +169,23 @@ export default function AuthPage() {
           description: isSignUp ? "Account created successfully!" : "Signed in successfully!",
         })
         
-        // Only redirect for sign in, not sign up
-        if (!isSignUp) {
+        // After successful sign up, proceed to the login view automatically
+        if (isSignUp) {
+          // Guide the user to sign in and handle email verification flow
+          if (data.requiresVerification) {
+            toast({
+              title: "Verify your email",
+              description: "We sent a link to your Gmail. Verify, then sign in.",
+            })
+          }
+          // Switch to sign-in form and keep email for convenience
+          setIsSignUp(false)
+          setFirstName("")
+          setLastName("")
+          setConfirmPassword("")
+          // Clear the password to avoid unintended autofill
+          setPassword("")
+        } else {
           // Immediate redirect based on user role using window.location for instant navigation
           if (data.user?.email === "gkcksdmn@gmail.com") {
             window.location.href = "/admin"
@@ -395,6 +448,7 @@ export default function AuthPage() {
                 className={`w-full focus:border-yellow-400 focus:ring-yellow-400 pr-10 ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'}`}
                 placeholder="Enter your password"
                 required
+                minLength={isSignUp ? 8 : undefined}
               />
               <button
                 type="button"
@@ -408,6 +462,21 @@ export default function AuthPage() {
                 )}
               </button>
             </div>
+            {isSignUp && password.length > 0 && (
+               <div className={`mt-1 h-1 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                 <div className={`h-1 rounded transition-all duration-200 ${passwordStrength === 'Weak' ? 'w-1/3 bg-red-500' : passwordStrength === 'Moderate' ? 'w-2/3 bg-orange-400' : 'w-full bg-green-500'}`}></div>
+               </div>
+             )}
+            {isSignUp && password.length > 0 && (
+               <div className="mt-2">
+                 <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                   <li className={`${passwordCriteria.length ? (isDark ? 'text-green-400' : 'text-green-600') : (isDark ? 'text-gray-400' : 'text-gray-500')}`}>• 8+ characters</li>
+                   <li className={`${passwordCriteria.lower ? (isDark ? 'text-green-400' : 'text-green-600') : (isDark ? 'text-gray-400' : 'text-gray-500')}`}>• Lowercase letter (a)</li>
+                   <li className={`${passwordCriteria.upper ? (isDark ? 'text-green-400' : 'text-green-600') : (isDark ? 'text-gray-400' : 'text-gray-500')}`}>• Uppercase letter (A)</li>
+                   <li className={`${passwordCriteria.special ? (isDark ? 'text-green-400' : 'text-green-600') : (isDark ? 'text-gray-400' : 'text-gray-500')}`}>• Special character (!@#$%^&*)</li>
+                 </ul>
+               </div>
+             )}
           </div>
 
           {isSignUp && (

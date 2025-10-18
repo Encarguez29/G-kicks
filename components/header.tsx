@@ -96,6 +96,67 @@ export function Header({ onSearch }: HeaderProps) {
     setIsMenuOpen(false)
   }
 
+  // Autocomplete state
+  const [allProducts, setAllProducts] = useState<any[]>([])
+  const [suggestions, setSuggestions] = useState<any[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+
+  // Fetch products when user starts typing (single character)
+  useEffect(() => {
+    const q = searchQuery.trim()
+    if (q.length < 1 || allProducts.length > 0) return
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/products')
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled) {
+          setAllProducts(Array.isArray(data) ? data : [])
+        }
+      } catch (err) {
+        console.warn('Failed to fetch products for suggestions', err)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [searchQuery, allProducts.length])
+
+  // Derive suggestions whenever query or product list changes
+  useEffect(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (q.length < 1) {
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+
+    const filtered = allProducts
+      .filter((p) => (
+        (p.name && p.name.toLowerCase().includes(q)) ||
+        (p.brand && p.brand.toLowerCase().includes(q)) ||
+        (p.category && p.category.toLowerCase().includes(q))
+      ))
+      .slice(0, 6)
+
+    setSuggestions(filtered)
+    setShowSuggestions(filtered.length > 0)
+  }, [searchQuery, allProducts])
+
+  const handleSuggestionClick = (productId: number) => {
+    setShowSuggestions(false)
+    setIsMenuOpen(false)
+    try {
+      router.push(`/product/${productId}`)
+    } catch (error) {
+      console.warn('Navigation error:', error)
+      window.location.href = `/product/${productId}`
+    }
+  }
+
   const handleSignOut = async () => {
     try {
       await signOut()
@@ -191,8 +252,32 @@ export function Header({ onSearch }: HeaderProps) {
                   setSearchQuery(e.target.value)
                   onSearch?.(e.target.value)
                 }}
+                onFocus={() => setShowSuggestions(suggestions.length > 0)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
                 className="pl-10 pr-4 bg-muted/50 h-9"
               />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute left-0 right-0 mt-2 bg-card border border-border rounded-md shadow-lg z-50">
+                  <ul className="py-1 max-h-80 overflow-auto">
+                    {suggestions.map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          onMouseDown={() => handleSuggestionClick(p.id)}
+                          className="w-full text-left px-3 py-2 hover:bg-accent flex items-center gap-3"
+                        >
+                          {/* Optional image */}
+                          {/* <img src={p.image_url} alt="" className="h-8 w-8 rounded object-cover" /> */}
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-foreground">{p.name}</div>
+                            <div className="text-xs text-muted-foreground">{p.brand} · {p.category}</div>
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </form>
           </div>
 
@@ -208,8 +293,30 @@ export function Header({ onSearch }: HeaderProps) {
                   setSearchQuery(e.target.value)
                   onSearch?.(e.target.value)
                 }}
+                onFocus={() => setShowSuggestions(suggestions.length > 0)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
                 className="pl-10 pr-4 bg-muted/50 h-9 text-sm"
               />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute left-0 right-0 mt-2 bg-card border border-border rounded-md shadow-lg z-50">
+                  <ul className="py-1 max-h-80 overflow-auto">
+                    {suggestions.map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          onMouseDown={() => handleSuggestionClick(p.id)}
+                          className="w-full text-left px-3 py-2 hover:bg-accent flex items-center gap-3"
+                        >
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-foreground">{p.name}</div>
+                            <div className="text-xs text-muted-foreground">{p.brand} · {p.category}</div>
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </form>
           </div>
 
@@ -616,7 +723,7 @@ export function Header({ onSearch }: HeaderProps) {
                         handleSignOut()
                         setIsMenuOpen(false)
                       }}
-                      className="w-full flex items-center justify-center px-4 py-3 text-sm font-medium text-red-600 hover:text-red-700 transition-colors bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800"
+                      className="w-full flex items-center justify-center px-4 py-3 text-sm font-medium text-red-600 hover:text-red-700 transition-colors bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-800"
                     >
                       <LogOut className="mr-2 h-4 w-4" />
                       Sign Out

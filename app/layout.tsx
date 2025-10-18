@@ -34,24 +34,28 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className={inter.className}>
-      <link 
-        rel="preload" 
-        href="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js" 
-        as="script" 
-        crossOrigin="anonymous"
-      />
-      <Script 
-        src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"
-        strategy="beforeInteractive"
-        type="module"
-      />
-      <Providers>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <link 
+          rel="preload" 
+          href="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js" 
+          as="script" 
+          crossOrigin="anonymous"
+        />
+        <Script 
+          src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"
+          strategy="beforeInteractive"
+          type="module"
+        />
+      </head>
+      <body className={inter.className}>
+        <Providers>
           <Header />
-        {children}
-        <Footer />
-        <Toaster />
-      </Providers>
-    </div>
+          {children}
+          <Footer />
+          <Toaster />
+        </Providers>
+      </body>
+    </html>
   )
 }

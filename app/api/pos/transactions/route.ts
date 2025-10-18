@@ -24,6 +24,8 @@ interface CreateTransactionRequest {
   paymentReference?: string
   cashReceived?: number
   changeGiven?: number
+  discount?: number
+  tax?: number
 }
 
 // GET - Fetch POS transactions
@@ -44,6 +46,21 @@ export async function GET(request: NextRequest) {
         isAuthenticated = true
       } catch (error) {
         console.error('JWT verification failed:', error)
+      }
+    }
+
+    // Fallback to JWT in auth-token cookie
+    if (!isAuthenticated) {
+      const cookieToken = request.cookies.get('auth-token')?.value
+      if (cookieToken) {
+        try {
+          const decoded = jwt.verify(cookieToken, process.env.JWT_SECRET || 'fallback-secret') as any
+          userEmail = decoded.email
+          userRole = decoded.role
+          isAuthenticated = true
+        } catch (error) {
+          console.error('Cookie JWT verification failed:', error)
+        }
       }
     }
 
@@ -147,6 +164,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Fallback to JWT in auth-token cookie
+    if (!isAuthenticated) {
+      const cookieToken = request.cookies.get('auth-token')?.value
+      if (cookieToken) {
+        try {
+          const decoded = jwt.verify(cookieToken, process.env.JWT_SECRET || 'fallback-secret') as any
+          userEmail = decoded.email
+          userRole = decoded.role
+          isAuthenticated = true
+        } catch (error) {
+          console.error('Cookie JWT verification failed:', error)
+        }
+      }
+    }
+
     // Fallback to NextAuth session if JWT not found or invalid
     if (!isAuthenticated) {
       const session = await getServerSession(authOptions)
@@ -163,6 +195,8 @@ export async function POST(request: NextRequest) {
 
     const body: CreateTransactionRequest = await request.json()
     const { items, total, paymentMethod, customerName, paymentReference, cashReceived, changeGiven } = body
+
+    const paymentMethodNormalized = typeof paymentMethod === 'string' ? paymentMethod.toUpperCase() : paymentMethod
 
     if (!items || items.length === 0) {
       return NextResponse.json({ error: 'No items provided' }, { status: 400 })
@@ -197,6 +231,13 @@ export async function POST(request: NextRequest) {
     // Calculate subtotal
     const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
 
+    // Compute discount, tax, and total (server-side safety)
+    const discountAmountInput = typeof body?.discount === 'number' ? body.discount : 0
+    const discountAmount = Math.max(0, Math.min(discountAmountInput, subtotal))
+    const taxBase = Math.max(0, subtotal - discountAmount)
+    const taxAmount = Number((taxBase * 0.12).toFixed(2))
+    const totalAmountComputed = Number((taxBase + taxAmount).toFixed(2))
+
     // Start transaction
     await pool.query('START TRANSACTION')
 
@@ -205,9 +246,9 @@ export async function POST(request: NextRequest) {
       const insertTransactionQuery = `
         INSERT INTO pos_transactions (
           transaction_id, user_id, customer_name,
-          subtotal, total_amount, payment_method, payment_reference,
+          subtotal, total_amount, payment_method,
           cash_received, change_given, receipt_number, transaction_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())
       `
 
       const transactionResult = await executeQuery(insertTransactionQuery, [
@@ -215,9 +256,8 @@ export async function POST(request: NextRequest) {
         adminUserId,
         customerName || null,
         subtotal,
-        total,
-        paymentMethod,
-        paymentReference || null,
+        totalAmountComputed,
+        paymentMethodNormalized,
         cashReceived || null,
         changeGiven || null,
         receiptNumber
@@ -346,14 +386,14 @@ export async function POST(request: NextRequest) {
       const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)
 
       await executeQuery(updateDailySalesQuery, [
-        adminUserId, totalItems, total, total,
-        paymentMethod, total,
-        paymentMethod, total,
-        paymentMethod, total,
-        totalItems, total, total,
-        paymentMethod, total,
-        paymentMethod, total,
-        paymentMethod, total
+        adminUserId, totalItems, subtotal, totalAmountComputed,
+        paymentMethodNormalized, totalAmountComputed,
+        paymentMethodNormalized, totalAmountComputed,
+        paymentMethodNormalized, totalAmountComputed,
+        totalItems, subtotal, totalAmountComputed,
+        paymentMethodNormalized, totalAmountComputed,
+        paymentMethodNormalized, totalAmountComputed,
+        paymentMethodNormalized, totalAmountComputed
       ])
 
       await pool.query('COMMIT')

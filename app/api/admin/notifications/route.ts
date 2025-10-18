@@ -78,13 +78,12 @@ export async function GET(request: NextRequest) {
       console.log('✅ Notifications API: Admin access granted for:', decoded.email);
     }
     
-    // Get count of new/pending orders that haven't been viewed by this admin
+    // Get count of unviewed orders for this admin with actionable statuses
     const newOrdersResult = await executeQuery(
       `SELECT COUNT(*) as count FROM orders o
        LEFT JOIN notification_views nv ON o.id = nv.order_id AND nv.admin_user_id = ?
-       WHERE (o.status IN ('pending', 'confirmed') 
-       OR o.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR))
-       AND nv.id IS NULL`,
+       WHERE o.status IN ('pending', 'confirmed', 'processing')
+       AND nv.order_id IS NULL`,
       [adminUserId]
     ) as RowDataPacket[];
     
@@ -102,7 +101,7 @@ export async function GET(request: NextRequest) {
        FROM orders o
        LEFT JOIN notification_views nv ON o.id = nv.order_id AND nv.admin_user_id = ?
        WHERE o.status IN ('pending', 'confirmed', 'processing')
-       AND nv.id IS NULL
+       AND nv.order_id IS NULL
        ORDER BY o.created_at DESC
        LIMIT 10`,
       [adminUserId]

@@ -13,13 +13,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Smartphone, User, CheckCircle, Receipt, Upload, X } from "lucide-react"
+import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Smartphone, User, CheckCircle, Receipt, Upload, X, Info } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { LocationSelector } from "@/components/ui/location-selector"
 import { getRecommendedBagSize, getAllBagSpecifications, getBagSpecificationBySize } from "@/lib/bag-specifications"
 import Image from "next/image"
+import { fetchProductByIdFromAPI } from "@/lib/product-data"
 
 export default function CartPage() {
   const { state: { items = [] } = {}, updateQuantity, removeItem: removeFromCart, clearCart } = useCart()
@@ -58,6 +60,9 @@ export default function CartPage() {
   const [paymentScreenshot, setPaymentScreenshot] = useState<string | null>(null)
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null)
   const [termsAccepted, setTermsAccepted] = useState(false)
+  // Add payment reference state
+  const [paymentReference, setPaymentReference] = useState<string>("")
+  const [paymentReferenceError, setPaymentReferenceError] = useState<string>("")
   const [selectedBagSize, setSelectedBagSize] = useState<'Small' | 'Medium' | 'Large'>('Small')
   const [shippingLocation, setShippingLocation] = useState<'Luzon' | 'Visayas/Mindanao'>('Luzon')
   const [calculatedShipping, setCalculatedShipping] = useState(0)
@@ -188,10 +193,41 @@ export default function CartPage() {
     loadUserProfileAndAddress()
   }, [user, tokenReady])
 
-  const handleQuantityChange = (id: string, size: string, newQuantity: number) => {
+  const handleQuantityChange = async (id: string, size: string, newQuantity: number) => {
     if (newQuantity < 1) {
       removeFromCart(id, size)
     } else {
+      // Find the item in the cart to get color context
+      const item = items.find((i) => i.id === id && i.size === size)
+  
+      let availableStock = Number.MAX_SAFE_INTEGER
+      try {
+        const product = await fetchProductByIdFromAPI(Number(id))
+        const colorKey = item?.color || ""
+        if (product && product.variants && colorKey && product.variants[colorKey] !== undefined && product.variants[colorKey][size] !== undefined) {
+          availableStock = Number(product.variants[colorKey][size]) || 0
+        } else if (product && (product as any).stock_quantity !== undefined) {
+          availableStock = Number((product as any).stock_quantity) || 0
+        } else {
+          // Fallback to current item quantity if stock unknown
+          availableStock = item?.quantity || 0
+        }
+      } catch (e) {
+        // If stock lookup fails, be conservative and keep current quantity
+        availableStock = item?.quantity || 0
+      }
+  
+      if (newQuantity > availableStock) {
+        // Clamp to available stock and notify user
+        updateQuantity(id, size, availableStock)
+        toast({
+          title: "Insufficient Stock",
+          description: `Only ${availableStock} items available for this selection.`,
+          variant: "destructive",
+        })
+        return
+      }
+  
       updateQuantity(id, size, newQuantity)
     }
   }
@@ -205,6 +241,9 @@ export default function CartPage() {
     // Reset screenshot when changing payment method
     setPaymentScreenshot(null)
     setScreenshotPreview(null)
+    // Reset payment reference when changing method
+    setPaymentReference("")
+    setPaymentReferenceError("")
   }
 
   const handleScreenshotUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -267,6 +306,23 @@ export default function CartPage() {
     }
   }
 
+  // Handle payment reference input change
+  const handlePaymentReferenceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value || ""
+    if (paymentMethod === "GCash") {
+      value = value.replace(/\D/g, "").slice(0, 13)
+      setPaymentReference(value)
+      setPaymentReferenceError(value.length === 13 ? "" : "GCash reference must be 13 digits")
+    } else if (paymentMethod === "Maya") {
+      value = value.replace(/[^a-zA-Z0-9]/g, "").slice(0, 12)
+      setPaymentReference(value)
+      setPaymentReferenceError(value.length === 12 ? "" : "Maya reference must be 12 alphanumeric characters")
+    } else {
+      setPaymentReference(value)
+      setPaymentReferenceError("")
+    }
+  }
+
   const handleCheckout = async () => {
     if (!customerEmail || !customerEmail.includes("@")) {
       toast({
@@ -300,14 +356,36 @@ export default function CartPage() {
       return
     }
 
-    // Validate screenshot for digital payment methods
-    if ((paymentMethod === "GCash" || paymentMethod === "Maya") && !paymentScreenshot) {
-      toast({
-        title: "Payment Screenshot Required",
-        description: `Please upload a screenshot of your ${paymentMethod} payment.`,
-        variant: "destructive"
-      })
-      return
+    // Validate screenshot and reference for digital payment methods
+    if (paymentMethod === "GCash" || paymentMethod === "Maya") {
+      if (!paymentScreenshot) {
+        toast({
+          title: "Screenshot Required",
+          description: `Please upload a ${paymentMethod} payment screenshot.`,
+          variant: "destructive",
+        })
+        return
+      }
+      if (!paymentReference) {
+        toast({
+          title: "Reference Required",
+          description: paymentMethod === "GCash" ? "Enter the 13-digit GCash reference number." : "Enter the 12-character Maya reference ID.",
+          variant: "destructive",
+        })
+        return
+      }
+      const isValid = paymentMethod === "GCash"
+        ? /^\d{13}$/.test(paymentReference)
+        : /^[A-Za-z0-9]{12}$/.test(paymentReference)
+
+      if (!isValid) {
+        toast({
+          title: "Invalid Reference",
+          description: paymentMethod === "GCash" ? "Reference must be 13 digits." : "Reference must be 12 alphanumeric characters.",
+          variant: "destructive",
+        })
+        return
+      }
     }
 
     // Validate terms and conditions acceptance
@@ -475,6 +553,7 @@ export default function CartPage() {
           shipping_address: shippingInfo,
           payment_method: paymentMethod,
           payment_screenshot: paymentScreenshotData,
+          payment_reference: paymentReference || null,
           status: "pending",
         })
       })
@@ -891,6 +970,13 @@ export default function CartPage() {
                     <h3 className="font-medium text-sm sm:text-base text-gray-900 dark:text-yellow-400">
                       Shipping Address
                     </h3>
+                    <Alert className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
+                      <Info className="h-4 w-4" />
+                      <AlertTitle className="text-yellow-800 dark:text-yellow-300">Heads up</AlertTitle>
+                      <AlertDescription className="text-yellow-700 dark:text-yellow-200">
+                        These fields are read-only during place order. To edit your information, go to your <a href="/profile" className="underline text-blue-600 dark:text-blue-400">Profile</a> page.
+                      </AlertDescription>
+                    </Alert>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="fullName" className="text-sm text-gray-700 dark:text-gray-300">
@@ -1029,9 +1115,9 @@ export default function CartPage() {
                             htmlFor="paymentScreenshot"
                             className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                           >
-                            <div className="flex flex-col items-center justify-center py-2">
-                              <Upload className="w-6 h-6 mb-1 text-gray-500 dark:text-gray-400" />
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <div className="flex flex-col items-center justify-center pt-3 pb-4 lg:pt-5 lg:pb-6">
+                              <Upload className="w-6 h-6 lg:w-8 lg:h-8 mb-1 lg:mb-2 text-gray-300" />
+                              <p className="mb-1 lg:mb-2 text-xs lg:text-sm text-gray-300">
                                 <span className="font-semibold">Click to upload</span> screenshot
                               </p>
                             </div>
@@ -1049,6 +1135,22 @@ export default function CartPage() {
                             />
                           </div>
                         )}
+                        {/* Payment Reference Input */}
+                        <div className="space-y-2 mt-3">
+                          <Label className="text-sm text-gray-700 dark:text-gray-300">
+                            {paymentMethod === "GCash" ? "Reference No. (13 digits) *" : "Reference ID (12 alphanumeric) *"}
+                          </Label>
+                          <Input
+                            id="paymentReference"
+                            value={paymentReference}
+                            onChange={handlePaymentReferenceChange}
+                            placeholder={paymentMethod === "GCash" ? "Enter 13-digit reference number" : "Enter 12-character reference ID"}
+                            className="h-10 sm:h-12 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white"
+                          />
+                          {paymentReferenceError && (
+                            <p className="text-xs text-red-600 dark:text-red-400">{paymentReferenceError}</p>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1171,6 +1273,28 @@ export default function CartPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Payment Reference Input */}
+                {(qrPaymentMethod === "gcash" || qrPaymentMethod === "maya") && (
+                  <div className="bg-gray-800 rounded-lg p-3 lg:p-4">
+                    <div className="flex items-center mb-2 lg:mb-3">
+                      <span className="w-5 h-5 mr-2 text-white">#</span>
+                      <h3 className="font-semibold text-white text-sm lg:text-base">
+                        {qrPaymentMethod === "gcash" ? "Reference No. (13 digits) *" : "Reference ID (12 alphanumeric) *"}
+                      </h3>
+                    </div>
+                    <Input
+                      id="qrPaymentReference"
+                      value={paymentReference}
+                      onChange={handlePaymentReferenceChange}
+                      placeholder={qrPaymentMethod === "gcash" ? "Enter 13-digit reference number" : "Enter 12-character reference ID"}
+                      className="h-10 bg-white/90 text-black"
+                    />
+                    {paymentReferenceError && (
+                      <p className="text-xs text-red-400 mt-1">{paymentReferenceError}</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Confirm Button */}
                 <Button 

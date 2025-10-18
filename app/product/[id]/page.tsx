@@ -359,21 +359,19 @@ export default function ProductPage() {
       })
       return
     }
-    // Add items based on selected quantity
-    for (let i = 0; i < quantity; i++) {
-      addItem({
-        id: product.id.toString(),
-        name: product.name,
-        price: product.price,
-        image: productImages[selectedImageIndex]?.src || product.image || "/placeholder.svg",
-        size: selectedSize,
-        color: selectedColor,
-        brand: product.brand,
-      })
-    }
+    // Add items with the selected quantity in a single call
+    addItem({
+      id: product.id.toString(),
+      name: product.name,
+      price: product.price,
+      image: productImages[selectedImageIndex]?.src || product.image || "/placeholder.svg",
+      size: selectedSize,
+      color: selectedColor,
+      brand: product.brand,
+    }, quantity)
     toast({
       title: "Added to Cart",
-      description: `${product.name} has been added to your cart.`,
+      description: `${quantity} ${product.name}${quantity > 1 ? 's' : ''} added to your cart.`,
     })
   }
 

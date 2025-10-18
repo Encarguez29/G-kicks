@@ -125,23 +125,44 @@ export async function POST(request: NextRequest) {
       [user.id, productId, size, color || '']
     ) as any[]
 
+    // Determine available stock from product variants (fallback to stock_quantity)
+    const productRows = await executeQuery(
+      `SELECT variants, stock_quantity FROM products WHERE id = ? AND is_active = 1`,
+      [productId]
+    ) as any[]
+    let availableStock = 0
+    if (Array.isArray(productRows) && productRows.length > 0) {
+      let variants: Record<string, Record<string, number>> = {}
+      try {
+        variants = productRows[0].variants ? JSON.parse(productRows[0].variants) : {}
+      } catch {
+        variants = {}
+      }
+      availableStock = (variants?.[(color || '')]?.[size] ?? Number(productRows[0].stock_quantity) ?? 0) as number
+    }
+
+    if (availableStock <= 0) {
+      return NextResponse.json({ error: 'Out of stock' }, { status: 400 })
+    }
+
     if (existingItem.length > 0) {
-      // Update quantity if item exists
-      const newQuantity = existingItem[0].quantity + quantity
+      // Clamp to available stock
+      const newQuantity = Math.min(existingItem[0].quantity + quantity, availableStock)
       await executeQuery(
         `UPDATE cart_items SET quantity = ?, updated_at = NOW() 
          WHERE id = ?`,
         [newQuantity, existingItem[0].id]
       )
-      console.log('✅ API: Updated cart item quantity')
+      console.log('✅ API: Updated cart item quantity (clamped to stock)')
     } else {
-      // Add new item to cart
+      // Add new item, clamped to available stock
+      const insertQty = Math.min(quantity, availableStock)
       await executeQuery(
         `INSERT INTO cart_items (user_id, product_id, quantity, size, color, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-        [user.id, productId, quantity, size, color || '']
+        [user.id, productId, insertQty, size, color || '']
       )
-      console.log('✅ API: Added new item to cart')
+      console.log('✅ API: Added new cart item (clamped to stock)')
     }
 
     // Return updated cart items
@@ -208,7 +229,6 @@ export async function PUT(request: NextRequest) {
     console.log('🛒 API: Updating cart item quantity for user:', user.id)
 
     if (quantity <= 0) {
-      // Remove item if quantity is 0 or less
       await executeQuery(
         `DELETE FROM cart_items 
          WHERE user_id = ? AND product_id = ? AND size = ? AND color = ?`,
@@ -216,11 +236,27 @@ export async function PUT(request: NextRequest) {
       )
       console.log('✅ API: Removed cart item')
     } else {
-      // Update quantity
+      // Determine available stock from product variants (fallback to stock_quantity)
+      const productRows = await executeQuery(
+        `SELECT variants, stock_quantity FROM products WHERE id = ? AND is_active = 1`,
+        [productId]
+      ) as any[]
+      let availableStock = 0
+      if (Array.isArray(productRows) && productRows.length > 0) {
+        let variants: Record<string, Record<string, number>> = {}
+        try {
+          variants = productRows[0].variants ? JSON.parse(productRows[0].variants) : {}
+        } catch {
+          variants = {}
+        }
+        availableStock = (variants?.[(color || '')]?.[size] ?? Number(productRows[0].stock_quantity) ?? 0) as number
+      }
+
+      const finalQty = Math.min(Number(quantity), availableStock)
       const result = await executeQuery(
         `UPDATE cart_items SET quantity = ?, updated_at = NOW() 
          WHERE user_id = ? AND product_id = ? AND size = ? AND color = ?`,
-        [quantity, user.id, productId, size, color || '']
+        [finalQty, user.id, productId, size, color || '']
       ) as any
 
       if (result.affectedRows === 0) {
@@ -229,7 +265,7 @@ export async function PUT(request: NextRequest) {
           { status: 404 }
         )
       }
-      console.log('✅ API: Updated cart item quantity')
+      console.log('✅ API: Updated cart item quantity (clamped to stock)')
     }
 
     // Return updated cart items

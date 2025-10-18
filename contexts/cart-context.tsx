@@ -31,7 +31,7 @@ type CartAction =
 const CartContext = createContext<{
   state: CartState
   dispatch: React.Dispatch<CartAction>
-  addItem: (item: Omit<CartItem, "quantity">) => void
+  addItem: (item: Omit<CartItem, "quantity">, quantity?: number) => void
   removeItem: (id: string, size: string) => void
   updateQuantity: (id: string, size: string, quantity: number) => void
   clearCart: () => void
@@ -282,7 +282,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state, isAuthenticated])
 
-  const addItem = async (item: Omit<CartItem, "quantity">) => {
+  const addItem = async (item: Omit<CartItem, "quantity">, quantity: number = 1) => {
     if (isAuthenticated && token) {
       try {
         const response = await fetch('/api/cart', {
@@ -295,7 +295,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             productId: item.id,
             size: item.size,
             color: item.color,
-            quantity: 1
+            quantity: quantity
           }),
         })
         
@@ -310,7 +310,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
     } else {
       // For non-authenticated users, use local storage
-      dispatch({ type: "ADD_ITEM", payload: item })
+      for (let i = 0; i < quantity; i++) {
+        dispatch({ type: "ADD_ITEM", payload: item })
+      }
     }
   }
 

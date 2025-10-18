@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAdmin } from "@/contexts/admin-context"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -34,12 +34,14 @@ export default function AdminOrdersPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [selectedOrderIndex, setSelectedOrderIndex] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null)
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false)
   const [orderToArchive, setOrderToArchive] = useState<Order | null>(null)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<Record<string, boolean>>({})
   const [disabledButtons, setDisabledButtons] = useState<Record<string, Set<string>>>({})
+  const [lastClickedStatus, setLastClickedStatus] = useState<Record<string, Order["status"] | null>>({})
   const { toast } = useToast()
 
   // Load disabled buttons from localStorage on component mount
@@ -87,8 +89,9 @@ export default function AdminOrdersPage() {
     }
   }, [state.isAuthenticated, state.isLoading, state.user, router, toast])
 
-  const loadOrders = async () => {
-    setIsLoading(true)
+  const broadcastRef = useRef<BroadcastChannel | null>(null)
+  const loadOrders = async (silent = false) => {
+    if (!silent) setIsLoading(true)
     try {
       const token = localStorage.getItem('auth_token')
       const response = await fetch('/api/admin/orders', {
@@ -115,7 +118,7 @@ export default function AdminOrdersPage() {
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      if (!silent) setIsLoading(false)
     }
   }
 
@@ -125,12 +128,47 @@ export default function AdminOrdersPage() {
     // Listen for new orders from the orders context
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === "gkicks-orders") {
-        loadOrders()
+        loadOrders(true)
       }
     }
 
     window.addEventListener("storage", handleStorageChange)
     return () => window.removeEventListener("storage", handleStorageChange)
+  }, [])
+
+  useEffect(() => {
+    // Setup cross-tab sync via BroadcastChannel and lightweight polling
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      broadcastRef.current = new BroadcastChannel('gkicks-orders-sync')
+      broadcastRef.current.onmessage = (event: MessageEvent) => {
+        const data: any = event?.data
+        if (data && data.type === 'order-updated') {
+          loadOrders(true)
+        }
+      }
+    }
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        loadOrders(true)
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        loadOrders(true)
+      }
+    }, 5000)
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      clearInterval(interval)
+      if (broadcastRef.current) {
+        try { broadcastRef.current.close() } catch {}
+        broadcastRef.current = null
+      }
+    }
   }, [])
 
   // Handle highlight parameter from URL
@@ -170,20 +208,33 @@ export default function AdminOrdersPage() {
   const handleStatusUpdate = async (orderId: string, newStatus: Order["status"]) => {
     if (isUpdatingStatus[orderId]) return // Prevent multiple clicks
     
-    // Disable the specific button that was clicked
-    setDisabledButtons(prev => ({
-      ...prev,
-      [orderId]: new Set([...(prev[orderId] || []), newStatus])
-    }))
-    
+    // Track which status was last clicked for session highlight
+    setLastClickedStatus(prev => ({ ...prev, [orderId]: newStatus }))
+
+    // Prevent duplicate interactions while updating
     setIsUpdatingStatus(prev => ({ ...prev, [orderId]: true }))
     try {
-      const token = localStorage.getItem('auth_token')
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
+      if (!token) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in as admin or staff to update orders.",
+          variant: "destructive",
+        })
+        try {
+          router.push('/admin/login')
+        } catch (navError) {
+          console.warn('Navigation error:', navError)
+          window.location.href = '/admin/login'
+        }
+        return
+      }
+
       const response = await fetch(`/api/admin/orders/${orderId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ status: newStatus }),
       })
@@ -198,14 +249,26 @@ export default function AdminOrdersPage() {
           title: "Order Updated",
           description: `Order status changed to ${newStatus}`,
         })
+        // Notify other same-origin tabs and refresh silently
+        broadcastRef.current?.postMessage({ type: 'order-updated', orderId, status: newStatus, at: Date.now() })
+        loadOrders(true)
       } else {
-        throw new Error('Failed to update order')
+        let errorMsg = 'Unknown error'
+        try {
+          const errData = await response.json()
+          errorMsg = errData?.error || JSON.stringify(errData)
+        } catch {
+          const text = await response.text()
+          errorMsg = text?.slice(0, 200) + (text && text.length > 200 ? '…' : '')
+        }
+        console.error('Failed to update order:', response.status, errorMsg)
+        throw new Error(`Failed to update order: ${response.status}`)
       }
     } catch (error) {
       console.error('Error updating order:', error)
       toast({
         title: "Error",
-        description: "Failed to update order status",
+        description: typeof error === 'object' ? (error as any).message || "Failed to update order status" : "Failed to update order status",
         variant: "destructive",
       })
     } finally {
@@ -365,17 +428,17 @@ export default function AdminOrdersPage() {
   return (
     <div className="p-6 space-y-6 bg-background min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-yellow-500">Orders Management</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-yellow-500">Orders Management</h1>
           <p className="text-muted-foreground mt-1">Manage and track customer orders from G-Kicks</p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" onClick={loadOrders} disabled={isLoading}>
+          <Button variant="outline" onClick={loadOrders} disabled={isLoading} size="sm">
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Badge variant="outline">
+          <Badge variant="outline" className="text-xs">
             {filteredOrders.length} {filteredOrders.length === 1 ? "order" : "orders"}
           </Badge>
         </div>
@@ -460,238 +523,59 @@ export default function AdminOrdersPage() {
               {filteredOrders.map((order, index) => (
                 <div 
                   key={order.id} 
-                  className={`border rounded-lg p-4 hover:bg-muted/50 transition-all duration-300 bg-card ${
+                  className={`border rounded-lg p-3 sm:p-4 hover:bg-muted/50 transition-all duration-300 bg-card ${
                     highlightOrderId === order.id.toString() 
                       ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 shadow-lg ring-2 ring-yellow-400/50' 
                       : 'border-border'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-4">
-                        <div>
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
                           <h3 className="font-medium text-foreground">#{index + 1}</h3>
-                          <p className="text-sm text-muted-foreground">{order.customerName || "Unknown Customer"}</p>
-                          <p className="text-xs text-muted-foreground">{order.customerEmail || "No email"}</p>
+                          <Badge className={`${getStatusColor(order.status)} flex items-center gap-1 text-xs`}>
+                            {getStatusIcon(order.status)}
+                            <span className="hidden xs:inline">{order.status}</span>
+                          </Badge>
                         </div>
-                        <div className="hidden sm:block">
-                          <p className="text-sm text-muted-foreground">
-                            {order.items?.length || 0} {(order.items?.length || 0) === 1 ? "item" : "items"}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(order.created_at || order.orderDate).toLocaleDateString("en-PH", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </p>
-                        </div>
+                        <p className="text-sm text-muted-foreground truncate pr-2">{order.customerName || "Unknown Customer"}</p>
+                        <p className="text-xs text-muted-foreground truncate pr-2">{order.customerEmail || "No email"}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="font-medium text-foreground text-sm sm:text-base">{formatCurrency(order.total)}</p>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-4">
-                      <div className="text-right">
-                        <p className="font-medium text-foreground">{formatCurrency(order.total)}</p>
-                        <Badge className={`${getStatusColor(order.status)} flex items-center gap-1`}>
-                          {getStatusIcon(order.status)}
-                          {order.status}
-                        </Badge>
+                
+                    <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-4">
+                        <span>
+                          {order.items?.length || 0} {(order.items?.length || 0) === 1 ? "item" : "items"}
+                        </span>
+                        <span>
+                          {new Date(order.created_at || order.orderDate).toLocaleDateString("en-PH", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              View
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-card border-border">
-                            <DialogHeader>
-                            <DialogTitle className="text-foreground">Order Details - #{filteredOrders.findIndex(order => order.id === selectedOrder?.id) + 1}</DialogTitle>
-                            <DialogDescription className="text-muted-foreground">
-                              Order placed on{" "}
-                              {selectedOrder &&
-                                new Date(selectedOrder.created_at || selectedOrder.orderDate).toLocaleDateString("en-PH", {
-                                  year: "numeric",
-                                  month: "long",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                            </DialogDescription>
-                          </DialogHeader>
-                          {selectedOrder && (
-                            <div className="space-y-6">
-                              {/* Customer Info */}
-                              <div>
-                                <h4 className="font-medium mb-2 text-foreground">Customer Information</h4>
-                                <div className="bg-muted p-3 rounded-lg">
-                                  <p className="text-foreground">
-                                    <strong>Name:</strong> {selectedOrder.customerName || "Unknown Customer"}
-                                  </p>
-                                  <p className="text-foreground">
-                                    <strong>Email:</strong> {selectedOrder.customerEmail || "No email provided"}
-                                  </p>
-                                </div>
-                              </div>
-
-                              {/* Shipping Address */}
-                              <div>
-                                <h4 className="font-medium mb-2 text-foreground">Shipping Address</h4>
-                                <div className="bg-muted p-3 rounded-lg">
-                                  {selectedOrder.shippingAddress ? (
-                                    <>
-                                      <p className="text-foreground">{selectedOrder.shippingAddress.fullName || 'N/A'}</p>
-                                      <p className="text-foreground">{selectedOrder.shippingAddress.street || 'N/A'}</p>
-                                      <p className="text-foreground">
-                                        {selectedOrder.shippingAddress.city || 'N/A'}, {selectedOrder.shippingAddress.province || 'N/A'}{" "}
-                                        {selectedOrder.shippingAddress.zipCode || 'N/A'}
-                                      </p>
-                                      <p className="text-foreground">Philippines</p>
-                                      {selectedOrder.shippingAddress.phone && (
-                                        <p className="text-foreground">
-                                          <strong>Phone:</strong> {selectedOrder.shippingAddress.phone}
-                                        </p>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <p className="text-foreground text-muted-foreground">No shipping address available</p>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Order Items */}
-                              <div>
-                                <h4 className="font-medium mb-2 text-foreground">Order Items</h4>
-                                <div className="space-y-2">
-                                  {(selectedOrder.items || []).map((item, index) => (
-                                    <div
-                                      key={index}
-                                      className="flex items-center justify-between p-3 bg-muted rounded-lg"
-                                    >
-                                      <div className="flex items-center space-x-3">
-                                        <img
-                                          src={item.image || "/placeholder.svg"}
-                                          alt={item.name}
-                                          className="w-12 h-12 object-cover rounded"
-                                        />
-                                        <div>
-                                          <p className="font-medium text-foreground">{item.name}</p>
-                                          <p className="text-sm text-muted-foreground">
-                                            Size: {item.size} | Color: {item.color}
-                                          </p>
-                                          <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
-                                        </div>
-                                      </div>
-<p className="font-medium text-foreground">{formatCurrency((item.price || 0) * item.quantity)}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-
-                              {/* Payment Information */}
-                              <div>
-                                <h4 className="font-medium mb-2 text-foreground">Payment Information</h4>
-                                <div className="bg-muted p-3 rounded-lg">
-                                  <div className="flex justify-between items-center mb-3">
-                                    <span className="text-foreground">Payment Method:</span>
-                                    <span className="text-foreground font-medium">{selectedOrder.paymentMethod}</span>
-                                  </div>
-                                  {selectedOrder.payment_screenshot && (selectedOrder.paymentMethod === "GCash" || selectedOrder.paymentMethod === "Maya") && (
-                                    <div>
-                                      <span className="text-foreground font-medium">Payment Screenshot:</span>
-                                      <div className="mt-2 border rounded-lg overflow-hidden max-w-sm">
-                                        <img 
-                                          src={selectedOrder.payment_screenshot} 
-                                          alt="Payment Screenshot" 
-                                          className="w-full h-auto max-h-64 object-contain hover:opacity-80 transition-opacity"
-                                          onClick={() => window.open(selectedOrder.payment_screenshot, '_blank')}
-                                          style={{ cursor: 'pointer' }}
-                                        />
-                                      </div>
-                                      <p className="text-xs text-muted-foreground mt-1">Click to view full size</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Order Summary */}
-                              <div>
-                                <h4 className="font-medium mb-2 text-foreground">Order Summary</h4>
-                                <div className="bg-muted p-3 rounded-lg">
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-foreground">Total:</span>
-                                    <span className="font-bold text-lg text-foreground">{formatCurrency(selectedOrder.total)}</span>
-                                  </div>
-                                  {selectedOrder.trackingNumber && (
-                                    <div className="flex justify-between items-center mt-2">
-                                      <span className="text-foreground">Tracking Number:</span>
-                                      <span className="font-mono text-foreground">{selectedOrder.trackingNumber}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Status Update */}
-                              <div>
-                                <h4 className="font-medium mb-2 text-foreground">Update Order Status</h4>
-                                <div className="flex flex-wrap gap-2">
-                                  {["pending", "confirmed", "processing", "shipped", "cancelled"].map(
-                                    (status) => {
-                                      const isCurrentOrderUpdating = isUpdatingStatus[selectedOrder.id]
-                                      const isCurrentStatus = selectedOrder.status === status
-                                      const isButtonDisabled = disabledButtons[selectedOrder.id]?.has(status) || false
-                                      return (
-                                        <Button
-                                          key={status}
-                                          variant={isCurrentStatus ? "default" : "outline"}
-                                          size="sm"
-                                          onClick={() => handleStatusUpdate(selectedOrder.id, status as Order["status"])}
-                                          disabled={isCurrentOrderUpdating || isCurrentStatus || isButtonDisabled}
-                                          className={`flex items-center gap-1 ${(isCurrentOrderUpdating || isButtonDisabled) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                        >
-                                          {isCurrentOrderUpdating ? (
-                                            <>
-                                              <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
-                                              Updating...
-                                            </>
-                                          ) : isButtonDisabled ? (
-                                            <>
-                                              <CheckCircle className="w-3 h-3 mr-1" />
-                                              Used
-                                            </>
-                                          ) : (
-                                            <>
-                                              {getStatusIcon(status)}
-                                              {status}
-                                            </>
-                                          )}
-                                        </Button>
-                                      )
-                                    }
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </DialogContent>
-                        </Dialog>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            setOrderToArchive(order)
-                            setIsArchiveDialogOpen(true)
-                          }}
-                          className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:text-orange-300 dark:hover:bg-orange-950"
-                        >
-                          <Archive className="h-4 w-4 mr-2" />
-                          Archive
-                        </Button>
-                      </div>
+                    </div>
+                    <div className="flex flex-col xs:flex-row gap-2 pt-2 border-t border-border/50">
+                      <Button variant="outline" size="sm" onClick={() => { setSelectedOrder(order); setSelectedOrderIndex(index); }} className="w-full xs:w-auto">
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Details
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOrderToArchive(order); setIsArchiveDialogOpen(true); }}
+                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:text-orange-300 dark:hover:bg-orange-950 w-full xs:w-auto"
+                      >
+                        <Archive className="h-4 w-4 mr-2" />
+                        Archive
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -723,6 +607,131 @@ export default function AdminOrdersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Order Details Dialog */}
+      <Dialog open={!!selectedOrder} onOpenChange={(open) => { if (!open) { setSelectedOrder(null); setSelectedOrderIndex(null); } }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-card border-border mx-4">
+          <DialogHeader>
+            <DialogTitle className="text-foreground text-base sm:text-lg">
+              Order Details - #{selectedOrderIndex !== null ? selectedOrderIndex + 1 : ''}
+            </DialogTitle>
+            {selectedOrder && (
+              <DialogDescription className="text-muted-foreground text-sm">
+                Order placed on {new Date(selectedOrder.created_at || (selectedOrder as any).orderDate).toLocaleDateString("en-PH", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          {selectedOrder && (
+            <div className="space-y-4 sm:space-y-6">
+              <div>
+                <h4 className="font-medium mb-2 text-foreground text-sm sm:text-base">Update Order Status</h4>
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                  {(() => {
+                    const lastClicked = lastClickedStatus[selectedOrder.id]
+                    const statusOrder: Order["status"][] = ["pending", "confirmed", "processing", "shipped"]
+                    const currentIndex = statusOrder.indexOf(selectedOrder.status as Order["status"]) 
+                    const lastIndex = lastClicked ? statusOrder.indexOf(lastClicked as Order["status"]) : -1
+                    const progressIndex = Math.max(currentIndex, lastIndex)
+                    const isCancelled = selectedOrder.status === "cancelled"
+                    return ["pending", "confirmed", "processing", "shipped", "cancelled"].map((status) => {
+                      const isCurrentOrderUpdating = isUpdatingStatus[selectedOrder.id]
+                      const statusIndex = statusOrder.indexOf(status as Order["status"]) 
+                      const isHighlighted = lastClicked === status
+                      const isCompletedStep = !isCancelled && progressIndex >= 0 && statusIndex >= 0 && statusIndex <= progressIndex
+                      const shouldDisable = isCurrentOrderUpdating || (isCancelled ? status !== "cancelled" : isCompletedStep)
+                      return (
+                        <Button
+                          key={status}
+                          variant={isHighlighted ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleStatusUpdate(selectedOrder.id, status as Order["status"])}
+                          disabled={shouldDisable}
+                          className={`flex items-center gap-1 text-xs ${shouldDisable ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          {isCurrentOrderUpdating ? (
+                            <>
+                              <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                              <span className="hidden xs:inline">Updating...</span>
+                            </>
+                          ) : (
+                            <>
+                              {isCompletedStep ? (
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                              ) : (
+                                getStatusIcon(status)
+                              )}
+                              <span className="capitalize whitespace-nowrap text-xs sm:text-sm">{status}</span>
+                            </>
+                          )}
+                        </Button>
+                      )
+                    })
+                  })()}
+                </div>
+              </div>
+              <div>
+                <h4 className="font-medium mb-2 text-foreground text-sm sm:text-base">Shipping Address</h4>
+                <div className="bg-muted p-3 rounded-lg">
+                  {selectedOrder.shippingAddress ? (
+                    <>
+                      <p className="text-foreground text-sm">{(selectedOrder.shippingAddress as any).fullName || 'N/A'}</p>
+                      <p className="text-foreground text-sm">{(selectedOrder.shippingAddress as any).street || 'N/A'}</p>
+                      <p className="text-foreground text-sm">
+                        {(selectedOrder.shippingAddress as any).city || 'N/A'}, {(selectedOrder.shippingAddress as any).province || 'N/A'} {(selectedOrder.shippingAddress as any).zipCode || 'N/A'}
+                      </p>
+                      <p className="text-foreground text-sm">Philippines</p>
+                      {(selectedOrder.shippingAddress as any).phone && (
+                        <p className="text-foreground text-sm">
+                          <strong>Phone:</strong> {(selectedOrder.shippingAddress as any).phone}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-foreground text-muted-foreground text-sm">No shipping address available</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h4 className="font-medium mb-2 text-foreground text-sm sm:text-base">Payment Information</h4>
+                <div className="bg-muted p-3 rounded-lg">
+                  <div className="flex flex-col xs:flex-row xs:justify-between xs:items-center mb-3 gap-1">
+                    <span className="text-foreground text-sm">Payment Method:</span>
+                    <span className="text-foreground font-medium text-sm">{selectedOrder.paymentMethod}</span>
+                  </div>
+                  {selectedOrder.payment_screenshot && (selectedOrder.paymentMethod === "GCash" || selectedOrder.paymentMethod === "Maya") && (
+                    <div>
+                      <span className="text-foreground font-medium text-sm">Payment Screenshot:</span>
+                      <div className="mt-2 border rounded-lg overflow-hidden max-w-full sm:max-w-sm">
+                        <img 
+                          src={selectedOrder.payment_screenshot} 
+                          alt="Payment Screenshot" 
+                          className="w-full h-auto max-h-48 sm:max-h-64 object-contain hover:opacity-80 transition-opacity"
+                          onClick={() => window.open(selectedOrder.payment_screenshot, '_blank')}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Click to view full size</p>
+                    </div>
+                  )}
+
+                  {(selectedOrder.paymentMethod === "GCash" || selectedOrder.paymentMethod === "Maya") && selectedOrder.payment_reference && (
+                    <div className="mt-3">
+                      <span className="text-foreground font-medium text-sm">Payment Reference:</span>
+                      <p className="text-foreground text-sm mt-1">{selectedOrder.payment_reference}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

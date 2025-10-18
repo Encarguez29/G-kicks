@@ -185,17 +185,6 @@ export function ProductGrid({
 
             <div className="flex items-center gap-2 sm:gap-4">
 
-              {/* Sync Button */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleForceSync}
-                className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
-              >
-                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Sync</span>
-              </Button>
-
               {/* Sort Dropdown */}
               <Select value={sortBy} onValueChange={setSortBy}>
                 <SelectTrigger className="w-20 sm:w-32 border-2 border-primary bg-primary/10 text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2">

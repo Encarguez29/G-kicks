@@ -234,6 +234,21 @@ export async function GET(request: NextRequest) {
           AND created_at >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
       ) combined_data
     `)
+
+    // Lifetime totals (all-time across orders and POS)
+    const lifetimeTotalsResult = await executeQuery(`
+      SELECT 
+        COUNT(*) as orders,
+        SUM(total_amount) as revenue
+      FROM (
+        SELECT total_amount
+        FROM orders 
+        UNION ALL
+        SELECT total_amount
+        FROM pos_transactions 
+        WHERE status = 'completed'
+      ) combined_all
+    `)
     
     // Growth metrics - Current month (combining orders and POS transactions)
     const currentMonthStatsResult = await executeQuery(`
@@ -341,6 +356,9 @@ export async function GET(request: NextRequest) {
       },
       currentMonth,
       lastMonth,
+      lifetimeTotals: {
+        orders: parseInt(String(lifetimeTotalsResult?.[0]?.orders ?? 0)) || 0,
+      },
       recentActivity: recentActivity.map((activity: any) => ({
         type: activity.type,
         id: activity.id,

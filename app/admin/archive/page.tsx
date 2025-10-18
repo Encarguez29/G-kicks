@@ -7,13 +7,13 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Archive, RotateCcw, Trash2, Search, Filter, Package, ShoppingCart, Users, ChevronDown, ChevronRight, Image } from 'lucide-react'
+import { Archive, RotateCcw, Trash2, Search, Filter, Package, ShoppingCart, Users, ChevronDown, ChevronRight, Image, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface ArchivedItem {
   id: number
   name: string
-  type: 'product' | 'order' | 'user' | 'carousel'
+  type: 'product' | 'order' | 'user' | 'carousel' | 'message'
   archived_at: string
   archived_by?: string
   reason?: string
@@ -27,7 +27,7 @@ export default function ArchivePage() {
   const [filterType, setFilterType] = useState<string>('all')
   const [restoring, setRestoring] = useState<number | null>(null)
   const [deleting, setDeleting] = useState<number | null>(null)
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['product', 'order', 'user', 'carousel']))
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['product', 'order', 'user', 'carousel', 'message']))
 
   useEffect(() => {
     fetchArchivedItems()
@@ -135,7 +135,8 @@ export default function ArchivePage() {
     product: filteredItems.filter(item => item.type === 'product'),
     order: filteredItems.filter(item => item.type === 'order'),
     user: filteredItems.filter(item => item.type === 'user'),
-    carousel: filteredItems.filter(item => item.type === 'carousel')
+    carousel: filteredItems.filter(item => item.type === 'carousel'),
+    message: filteredItems.filter(item => item.type === 'message')
   }
 
   const toggleCategory = (category: string) => {
@@ -158,6 +159,8 @@ export default function ArchivePage() {
         return <Users className="h-4 w-4" />
       case 'carousel':
         return <Image className="h-4 w-4" />
+      case 'message':
+        return <MessageCircle className="h-4 w-4" />
       default:
         return <Archive className="h-4 w-4" />
     }
@@ -173,13 +176,15 @@ export default function ArchivePage() {
         return 'bg-purple-100 text-purple-800'
       case 'carousel':
         return 'bg-orange-100 text-orange-800'
+      case 'message':
+        return 'bg-teal-100 text-teal-800'
       default:
         return 'bg-gray-100 text-gray-800'
     }
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="w-full px-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Archive Management</h1>
@@ -193,7 +198,7 @@ export default function ArchivePage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Archived</CardTitle>
@@ -247,6 +252,17 @@ export default function ArchivePage() {
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Archived Messages</CardTitle>
+            <MessageCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {archivedItems.filter(item => item.type === 'message').length}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
@@ -281,6 +297,7 @@ export default function ArchivePage() {
                 <SelectItem value="order">Orders</SelectItem>
                 <SelectItem value="user">Users</SelectItem>
                 <SelectItem value="carousel">Carousel</SelectItem>
+                <SelectItem value="message">Messages</SelectItem>
               </SelectContent>
             </Select>
           </div>

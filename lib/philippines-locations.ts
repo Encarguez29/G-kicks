@@ -2073,6 +2073,6 @@ export function getProvinceNames(): string[] {
 }
 
 export function getCitiesForProvince(provinceName: string): City[] {
-  const province = philippinesLocations.find(p => p.name === provinceName);
+  const province = philippinesLocations.find(p => p.name.toLowerCase() === provinceName.toLowerCase());
   return province ? province.cities : [];
 }

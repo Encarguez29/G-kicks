@@ -33,6 +33,7 @@ interface AnalyticsData {
   currentMonth: { orders: number; revenue: number; customers: number }
   lastMonth: { orders: number; revenue: number; customers: number }
   recentActivity: Array<{ type: string; id: string; amount: number; status: string; date: string; customer: string }>
+  lifetimeTotals?: { orders: number }
 }
 
 const COLORS = ["#FBBF24", "#10B981", "#3B82F6", "#EF4444", "#8B5CF6"]
@@ -96,7 +97,7 @@ export default function AnalyticsPage() {
         ['', ''],
         ['Key Metrics', ''],
         ['Total Revenue (Current Month)', `₱${analyticsData.currentMonth.revenue?.toLocaleString() || '0.00'}`],
-        ['Total Orders (Current Month)', analyticsData.currentMonth.orders?.toLocaleString() || '0'],
+        ['Total Orders (All Time)', analyticsData.lifetimeTotals?.orders?.toLocaleString() || '0'],
         ['Average Order Value', `₱${analyticsData.customerStats.avg_order_value?.toLocaleString() || '0.00'}`],
         ['Total Customers', analyticsData.customerStats.total_customers?.toLocaleString() || '0'],
         ['', ''],
@@ -235,12 +236,10 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-card-foreground">
-              {analyticsData?.currentMonth.orders?.toLocaleString() || '0'}
+              {analyticsData?.lifetimeTotals?.orders?.toLocaleString() || '0'}
             </div>
             <p className="text-xs text-muted-foreground">
-              <span className={(analyticsData?.growth?.orders || 0) >= 0 ? "text-green-500" : "text-red-500"}>
-                {(analyticsData?.growth?.orders || 0) >= 0 ? '+' : ''}{analyticsData?.growth?.orders || 0}%
-              </span> from last month
+              All-time orders across online and POS
             </p>
           </CardContent>
         </Card>
@@ -310,27 +309,29 @@ export default function AnalyticsPage() {
             <CardTitle className="text-card-foreground">Sales by Category</CardTitle>
             <CardDescription className="text-muted-foreground">Product category performance</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 sm:p-6">
             {analyticsData?.categoryStats && analyticsData.categoryStats.length > 0 ? (
-              <ResponsiveContainer width="100%" height={350}>
-                <PieChart>
-                  <Pie
-                    data={analyticsData.categoryStats}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {analyticsData.categoryStats.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => [value, "Items Sold"]} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="h-[85vh] sm:h-[350px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={analyticsData.categoryStats}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                      outerRadius="80%"
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {analyticsData.categoryStats.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => [value, "Items Sold"]} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             ) : (
               <div className="flex items-center justify-center h-[350px]">
                 <div className="text-center">
