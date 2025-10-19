@@ -198,7 +198,7 @@ export default function AdminOrdersPage() {
         (order) =>
           order.customerName?.toLowerCase().includes(searchLower) ||
           order.customerEmail?.toLowerCase().includes(searchLower) ||
-          order.id.toLowerCase().includes(searchLower),
+          String(order?.id ?? '').toLowerCase().includes(searchLower),
       )
     }
 
@@ -206,6 +206,15 @@ export default function AdminOrdersPage() {
   }, [orders, searchTerm, statusFilter])
 
   const handleStatusUpdate = async (orderId: string, newStatus: Order["status"]) => {
+    if (!orderId) {
+      toast({
+        title: "Missing Order ID",
+        description: "Cannot update status without a valid order ID.",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (isUpdatingStatus[orderId]) return // Prevent multiple clicks
     
     // Track which status was last clicked for session highlight
@@ -230,20 +239,22 @@ export default function AdminOrdersPage() {
         return
       }
 
-      const response = await fetch(`/api/admin/orders/${orderId}`, {
-        method: 'PATCH',
+      const response = await fetch(`/api/admin/orders`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ orderId, status: newStatus }),
       })
       
       if (response.ok) {
-        const updatedOrder = await response.json()
-        setOrders((prevOrders) => prevOrders.map((order) => (order.id === orderId ? updatedOrder : order)))
+        // API returns a success payload, not the full order; update locally
+        setOrders((prevOrders) => prevOrders.map((order) => (
+          order.id === orderId ? { ...order, status: newStatus } : order
+        )))
         if (selectedOrder?.id === orderId) {
-          setSelectedOrder(updatedOrder)
+          setSelectedOrder(prev => (prev ? { ...prev, status: newStatus } : prev))
         }
         toast({
           title: "Order Updated",
@@ -253,13 +264,18 @@ export default function AdminOrdersPage() {
         broadcastRef.current?.postMessage({ type: 'order-updated', orderId, status: newStatus, at: Date.now() })
         loadOrders(true)
       } else {
+        // Read body once to avoid "body stream already read" errors
         let errorMsg = 'Unknown error'
         try {
-          const errData = await response.json()
-          errorMsg = errData?.error || JSON.stringify(errData)
-        } catch {
           const text = await response.text()
-          errorMsg = text?.slice(0, 200) + (text && text.length > 200 ? '…' : '')
+          try {
+            const errData = JSON.parse(text)
+            errorMsg = errData?.error || JSON.stringify(errData)
+          } catch {
+            errorMsg = text?.slice(0, 200) + (text && text.length > 200 ? '…' : '')
+          }
+        } catch (readErr) {
+          console.warn('Failed to read error response body:', readErr)
         }
         console.error('Failed to update order:', response.status, errorMsg)
         throw new Error(`Failed to update order: ${response.status}`)
@@ -434,7 +450,7 @@ export default function AdminOrdersPage() {
           <p className="text-muted-foreground mt-1">Manage and track customer orders from G-Kicks</p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" onClick={loadOrders} disabled={isLoading} size="sm">
+          <Button variant="outline" onClick={() => loadOrders()} disabled={isLoading} size="sm">
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline">Refresh</span>
           </Button>
@@ -522,9 +538,9 @@ export default function AdminOrdersPage() {
             <div className="space-y-4">
               {filteredOrders.map((order, index) => (
                 <div 
-                  key={order.id} 
+                  key={`${order?.id ?? 'no-id'}-${index}`}
                   className={`border rounded-lg p-3 sm:p-4 hover:bg-muted/50 transition-all duration-300 bg-card ${
-                    highlightOrderId === order.id.toString() 
+                    highlightOrderId === String(order?.id ?? '') 
                       ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 shadow-lg ring-2 ring-yellow-400/50' 
                       : 'border-border'
                   }`}

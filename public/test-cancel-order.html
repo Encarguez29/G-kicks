@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Test Cancel Order</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1221; color:#e5e7eb; padding: 24px; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; max-width: 720px; }
+    input, button { padding: 8px 12px; border-radius: 6px; border: 1px solid #374151; background: #0f172a; color: #e5e7eb; }
+    button { cursor: pointer; }
+    code { background: #0f172a; padding: 6px; border-radius: 6px; display:block; white-space: pre-wrap; }
+    .ok { color: #22c55e }
+    .err { color: #ef4444 }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Test Cancel Order API</h2>
+    <p>Enter an order ID from your list, then click Cancel.</p>
+    <div style="display:flex; gap:8px; margin: 12px 0;">
+      <input id="orderId" placeholder="Order ID" />
+      <button onclick="cancelOrder()">Cancel Order</button>
+      <button onclick="decodeToken()">Decode Token</button>
+    </div>
+    <div id="status"></div>
+    <code id="output"></code>
+  </div>
+  <script>
+    function show(status, data, ok) {
+      document.getElementById('status').innerHTML = ok ? '<b class="ok">SUCCESS</b>' : '<b class="err">FAILED</b>';
+      document.getElementById('output').textContent = (status + '\n\n' + (data ? JSON.stringify(data, null, 2) : ''));
+    }
+    function decodeToken(){
+      const token = localStorage.getItem('auth_token');
+      if(!token) return show('No token in localStorage', null, false);
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        show('Decoded token payload:', payload, true);
+      } catch(e){
+        show('Failed to decode token: ' + e.message, null, false);
+      }
+    }
+    async function cancelOrder(){
+      const id = document.getElementById('orderId').value.trim();
+      if(!id) return show('Please enter an order ID', null, false);
+      const token = localStorage.getItem('auth_token');
+      if(!token) return show('No token in localStorage', null, false);
+      try {
+        const res = await fetch('/api/orders/' + encodeURIComponent(id) + '/cancel', {
+          method: 'PATCH',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+          }
+        });
+        const data = await res.json().catch(() => ({ error: 'Non-JSON response' }));
+        const statusLine = 'HTTP ' + res.status + ' ' + res.statusText + (res.ok ? ' (ok)' : '');
+        show(statusLine, data, res.ok);
+      } catch (e) {
+        show('Network error: ' + e.message, null, false);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -29,12 +29,13 @@ interface OrderEmailData {
   total: number;
   shippingAddress: {
     fullName: string;
-    address: string;
+    street: string;
     city: string;
-    state: string;
-    postalCode: string;
+    province: string;
+    zipCode: string;
     country: string;
     shipping_region?: string;
+    phone?: string;
   };
   orderDate: string;
 }
@@ -155,7 +156,7 @@ function generateOrderReceiptHTML(orderData: OrderEmailData): string {
           <span>₱${orderData.subtotal.toFixed(2)}</span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-          <span>Tax:</span>
+          <span>Tax (VAT):</span>
           <span>₱${orderData.tax.toFixed(2)}</span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
@@ -166,6 +167,9 @@ function generateOrderReceiptHTML(orderData: OrderEmailData): string {
           <span>Total:</span>
           <span>₱${orderData.total.toFixed(2)}</span>
         </div>
+        <div style="margin-top: 8px; font-size: 12px; color: #666;">
+          Includes VAT ₱${orderData.tax.toFixed(2)} and Shipping ₱${orderData.shipping.toFixed(2)}
+        </div>
       </div>
 
       <!-- Shipping Address -->
@@ -173,10 +177,11 @@ function generateOrderReceiptHTML(orderData: OrderEmailData): string {
         <h3 style="margin-top: 0; color: #333;">Shipping Address</h3>
         <div style="color: #666;">
           <div style="font-weight: 600; color: #333; margin-bottom: 5px;">${orderData.shippingAddress.fullName}</div>
-          <div>${orderData.shippingAddress.address}</div>
-          <div>${orderData.shippingAddress.city}, ${orderData.shippingAddress.state} ${orderData.shippingAddress.postalCode}</div>
+          <div>${orderData.shippingAddress.street}</div>
+          <div>${orderData.shippingAddress.city}, ${orderData.shippingAddress.province} ${orderData.shippingAddress.zipCode}</div>
           <div>${orderData.shippingAddress.country}</div>
-          ${orderData.shippingAddress.shipping_region ? `<div>Shipping Region: ${orderData.shippingAddress.shipping_region}</div>` : ''}
+          <div>Shipping Region: ${orderData.shippingAddress.shipping_region || ''}</div>
+          ${orderData.shippingAddress.phone ? `<div>Phone: ${orderData.shippingAddress.phone}</div>` : ''}
         </div>
       </div>
 
@@ -216,6 +221,9 @@ Thank you for your purchase, ${orderData.customerName}!
 
 Order Number: ${orderData.orderNumber}
 Order Date: ${orderData.orderDate}
+Subtotal: ₱${orderData.subtotal.toFixed(2)}
+Tax: ₱${orderData.tax.toFixed(2)}
+Shipping: ₱${orderData.shipping.toFixed(2)}
 Total: ₱${orderData.total.toFixed(2)}
 
 Your order has been successfully placed and is being processed.
