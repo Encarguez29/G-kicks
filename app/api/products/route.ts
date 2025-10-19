@@ -215,6 +215,22 @@ export async function GET(request: NextRequest) {
         galleryImages = [];
       }
       
+      let sizes: string[] = [];
+      try {
+        sizes = item.sizes ? JSON.parse(item.sizes) : [];
+      } catch (e) {
+        console.warn('Failed to parse sizes for product', item.id, ':', e);
+        sizes = [];
+      }
+
+      let variants: Record<string, Record<string, number>> = {};
+      try {
+        variants = item.variants ? JSON.parse(item.variants) : {};
+      } catch (e) {
+        console.warn('Failed to parse variants for product', item.id, ':', e);
+        variants = {};
+      }
+      
       return {
         id: item.id,
         name: item.name || 'Unknown Product',

@@ -35,20 +35,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link 
-          rel="preload" 
-          href="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js" 
-          as="script" 
-          crossOrigin="anonymous"
-        />
+      <body className={inter.className}>
         <Script 
           src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"
           strategy="beforeInteractive"
           type="module"
         />
-      </head>
-      <body className={inter.className}>
+        {/* Providers and app shell */}
         <Providers>
           <Header />
           {children}

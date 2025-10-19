@@ -20,7 +20,7 @@ interface Order extends RowDataPacket {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check for JWT token in Authorization header first
@@ -53,7 +53,7 @@ export async function PATCH(
     }
 
     const { status } = await request.json()
-    const { id: orderId } = params
+    const { id: orderId } = await params
 
     if (!status || !['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'].includes(status)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
@@ -142,7 +142,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check for JWT token in Authorization header or cookies
@@ -207,7 +207,7 @@ export async function DELETE(
     
     console.log('🔐 Archive request authorized for user:', userEmail)
 
-    const { id: orderId } = params
+    const { id: orderId } = await params
 
     console.log('🗑️ API: Archiving order:', orderId)
 

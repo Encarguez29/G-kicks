@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { executeQuery } from '@/lib/database'
+import { executeQuery } from '@/lib/database/mysql'
 import jwt from 'jsonwebtoken'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret'
@@ -12,12 +12,16 @@ interface JWTPayload {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    // Get authorization header
+    // Get token from cookie or Authorization header
+    let token = request.cookies.get('auth-token')?.value || null
     const authHeader = request.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token && authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7)
+    }
+    if (!token) {
       return NextResponse.json(
         { error: 'Authorization token required' },
         { status: 401 }
@@ -25,7 +29,6 @@ export async function PATCH(
     }
 
     // Verify JWT token
-    const token = authHeader.substring(7)
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload
     
     if (!decoded.userId) {
@@ -34,8 +37,22 @@ export async function PATCH(
         { status: 401 }
       )
     }
+    const userIdNum = Number(decoded.userId)
+    if (Number.isNaN(userIdNum)) {
+      return NextResponse.json(
+        { error: 'Invalid user identifier' },
+        { status: 401 }
+      )
+    }
 
-    const { id: orderId } = await params
+    const { id: orderId } = params
+    const orderIdNum = Number(orderId)
+    if (Number.isNaN(orderIdNum)) {
+      return NextResponse.json(
+        { error: 'Invalid order ID' },
+        { status: 400 }
+      )
+    }
 
     // First, check if the order exists and belongs to the user
     const orderQuery = `
@@ -43,7 +60,7 @@ export async function PATCH(
       FROM orders 
       WHERE id = ? AND user_id = ?
     `
-    const orderRows = await executeQuery(orderQuery, [orderId, decoded.userId])
+    const orderRows = await executeQuery(orderQuery, [orderIdNum, userIdNum])
     const orders = orderRows as any[]
 
     if (orders.length === 0) {
@@ -66,10 +83,20 @@ export async function PATCH(
     // Update order status to cancelled
     const updateQuery = `
       UPDATE orders 
-      SET status = 'cancelled', updated_at = NOW() 
-      WHERE id = ? AND user_id = ?
+      SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ? AND user_id = ? AND status IN ('pending', 'processing')
     `
-    await executeQuery(updateQuery, [orderId, decoded.userId])
+    const updateResult = await executeQuery(updateQuery, [orderIdNum, userIdNum]) as any
+
+    if (updateResult && typeof updateResult.affectedRows === 'number' && updateResult.affectedRows === 0) {
+      return NextResponse.json(
+        { error: 'Order cannot be cancelled or not found' },
+        { status: 400 }
+      )
+    }
+
+    // Remove duplicate update call
+    // Update already executed above; no second call needed
 
     return NextResponse.json(
       { 
@@ -90,9 +117,18 @@ export async function PATCH(
       )
     }
 
+    // Surface error detail to help debug
+    const message = (error as any)?.message || 'Failed to cancel order'
     return NextResponse.json(
-      { error: 'Failed to cancel order' },
+      { error: message, message },
       { status: 500 }
     )
   }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  return PATCH(request, { params })
 }

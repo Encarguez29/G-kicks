@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { useAuth } from "@/contexts/auth-context"
 import { Package, Truck, CheckCircle, Clock, XCircle, Eye, RotateCcw, X } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 interface OrderItem {
   id: string
@@ -36,6 +37,7 @@ interface Order {
   trackingNumber?: string
   paymentMethod?: string
   payment_screenshot?: string
+  payment_reference?: string | null
 }
 
 const getStatusIcon = (status: string) => {
@@ -79,6 +81,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
     if (isAuthenticated && tokenReady) {
@@ -133,26 +136,29 @@ export default function OrdersPage() {
   const handleCancelOrder = async (orderId: string) => {
     try {
       const token = localStorage.getItem('auth_token')
+      if (!token) throw new Error('You are not authenticated')
+    
       const response = await fetch(`/api/orders/${orderId}/cancel`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       })
-
+      const data = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error('Failed to cancel order')
+        const msg = (data as any)?.error || (data as any)?.message || 'Failed to cancel order'
+        throw new Error(msg)
       }
-
-      // Refresh orders list
-      const updatedOrders = orders.map(order => 
-        order.id === orderId ? { ...order, status: 'cancelled' } : order
-      )
-      setOrders(updatedOrders)
+    
+      // Update local state on success
+      setOrders(prev => prev.map(order => order.id === orderId ? { ...order, status: 'cancelled' } : order))
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, status: 'cancelled' })
+      }
     } catch (error) {
       console.error('Failed to cancel order:', error)
-      alert('Failed to cancel order. Please try again.')
+      alert(error instanceof Error ? error.message : 'Failed to cancel order. Please try again.')
     }
   }
 
@@ -188,6 +194,11 @@ export default function OrdersPage() {
       console.error('Failed to mark order as delivered:', error)
       alert('Failed to mark order as delivered. Please try again.')
     }
+  }
+
+  const handleReturnExchange = (order: Order) => {
+    const idOrNumber = order.orderNumber || order.id
+    router.push(`/customer-support?orderId=${encodeURIComponent(idOrNumber)}`)
   }
 
   if (loading) {
@@ -337,7 +348,12 @@ export default function OrdersPage() {
                           </Button>
                         )}
                         {order.status === "delivered" && (
-                          <Button variant="outline" size="sm" className="flex items-center gap-2 bg-transparent">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex items-center gap-2 bg-transparent"
+                            onClick={() => handleReturnExchange(order)}
+                          >
                             <RotateCcw className="h-4 w-4" />
                             Return/Exchange
                           </Button>
@@ -511,3 +527,6 @@ export default function OrdersPage() {
     </div>
   )
 }
+
+// Remove mistakenly appended function at file end
+// (this section intentionally left blank)

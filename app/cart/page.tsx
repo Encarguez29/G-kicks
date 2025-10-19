@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast"
 import { LocationSelector } from "@/components/ui/location-selector"
 import { getRecommendedBagSize, getAllBagSpecifications, getBagSpecificationBySize } from "@/lib/bag-specifications"
 import Image from "next/image"
+import Link from "next/link"
 import { fetchProductByIdFromAPI } from "@/lib/product-data"
 
 export default function CartPage() {
@@ -66,6 +67,52 @@ export default function CartPage() {
   const [selectedBagSize, setSelectedBagSize] = useState<'Small' | 'Medium' | 'Large'>('Small')
   const [shippingLocation, setShippingLocation] = useState<'Luzon' | 'Visayas/Mindanao'>('Luzon')
   const [calculatedShipping, setCalculatedShipping] = useState(0)
+
+  // Selection state for cart items
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
+  const getItemKey = (item: any) => `${item.id}-${item.size ?? ''}`
+  const allSelected = items.length > 0 && items.every((it) => selectedItems.has(getItemKey(it)))
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedItems(new Set())
+    } else {
+      setSelectedItems(new Set(items.map(getItemKey)))
+    }
+  }
+  const toggleItemSelection = (item: any, checked: boolean) => {
+    setSelectedItems((prev) => {
+      const next = new Set(prev)
+      const key = getItemKey(item)
+      if (checked) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }
+
+  const removeSelectedItems = () => {
+    const toRemove = items.filter((it) => selectedItems.has(getItemKey(it)))
+    if (toRemove.length === 0) return
+    for (const it of toRemove) {
+      removeFromCart(it.id, it.size)
+    }
+    setSelectedItems(new Set())
+    toast({
+      title: allSelected ? "All items deleted" : "Selected items deleted",
+      description: `${toRemove.length} item${toRemove.length > 1 ? 's' : ''} removed from cart.`,
+    })
+  }
+
+  // Keep selection in sync when cart items change
+  useEffect(() => {
+    setSelectedItems((prev) => {
+      const next = new Set<string>()
+      for (const it of items) {
+        const key = getItemKey(it)
+        if (prev.has(key)) next.add(key)
+      }
+      return next
+    })
+  }, [items])
 
   // Helper function to determine shipping region based on province
   const getShippingRegionByProvince = (province: string): 'Luzon' | 'Visayas/Mindanao' => {
@@ -513,8 +560,9 @@ export default function CartPage() {
         }
       }
 
-      // Calculate totals
-      const subtotal = items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0)
+      // Calculate totals using selected items if any
+      const effectiveItems = selectedItems.size > 0 ? items.filter(it => selectedItems.has(getItemKey(it))) : items
+      const subtotal = effectiveItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0)
       const vat = subtotal * 0.12 // 12% VAT in Philippines
       
       // Use calculated shipping from state
@@ -522,11 +570,11 @@ export default function CartPage() {
       
       const total = subtotal + vat + shipping
 
-      // Calculate total quantity of items
-      const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+      // Calculate total quantity of effective items
+      const totalQuantity = effectiveItems.reduce((sum, item) => sum + (item.quantity || 0), 0)
 
       // Calculate recommended bag size
-      const recommendedBag = getRecommendedBagSize(items.length)
+      const recommendedBag = getRecommendedBagSize(effectiveItems.length)
 
       // Use payment screenshot URL directly
       const paymentScreenshotData = paymentScreenshot || null
@@ -539,7 +587,7 @@ export default function CartPage() {
           ...(token && { 'Authorization': `Bearer ${token}` })
         },
         body: JSON.stringify({
-          items: items.map(item => ({
+          items: effectiveItems.map(item => ({
             product_id: item.id,
             product_name: item.name,
             quantity: item.quantity,
@@ -629,8 +677,9 @@ export default function CartPage() {
     }
   }
 
-  // Calculate totals for display
-  const subtotal = items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0)
+  // Calculate totals for display using selected items if any
+  const displayItems = selectedItems.size > 0 ? items.filter(it => selectedItems.has(getItemKey(it))) : items
+  const subtotal = displayItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0)
   const vat = subtotal * 0.12 // 12% VAT in Philippines
   
   // Use calculated shipping from state
@@ -639,10 +688,10 @@ export default function CartPage() {
   const total = subtotal + vat + shipping
 
   // Calculate total quantity of items for display
-  const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+  const totalQuantity = displayItems.reduce((sum, item) => sum + (item.quantity || 0), 0)
 
   // Calculate recommended bag size for display
-  const recommendedBag = getRecommendedBagSize(items.length)
+  const recommendedBag = getRecommendedBagSize(displayItems.length)
 
   if (items.length === 0 && !showOrderSuccess) {
     return (
@@ -699,22 +748,52 @@ export default function CartPage() {
         <div className="grid lg:grid-cols-3 gap-6 sm:gap-8">
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-4">
+            <div className="flex items-center justify-between">
+              <Button variant="outline" size="sm" onClick={toggleSelectAll}>
+                {allSelected ? "Unselect All" : "Select All"}
+              </Button>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  {Array.from(selectedItems).length} selected
+                </span>
+                {selectedItems.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={removeSelectedItems}
+                    className="bg-red-600 text-white rounded-full px-3 h-8 shadow-sm hover:bg-red-700 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    {allSelected ? "Delete All" : "Delete Selected"}
+                  </Button>
+                )}
+              </div>
+            </div>
             {items.map((item, index) => (
               <Card key={`${item.id}-${item.size}-${index}`} className="bg-card border-border">
                 <CardContent className="p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Image
-                        src={item.image || "/placeholder.svg"}
-                        alt={item.name}
-                        width={80}
-                        height={80}
-                        className="object-cover rounded-lg"
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={selectedItems.has(getItemKey(item))}
+                        onCheckedChange={(checked) => toggleItemSelection(item, !!checked)}
+                        aria-label="Select item"
                       />
+                      <Link href={`/product/${item.id}`} className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-400">
+                        <Image
+                          src={item.image || "/placeholder.svg"}
+                          alt={item.name}
+                          width={80}
+                          height={80}
+                          className="object-cover rounded-lg"
+                        />
+                      </Link>
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-gray-900 dark:text-white text-sm sm:text-base truncate">
-                        {item.name}
+                        <Link href={`/product/${item.id}`} className="hover:underline">
+                          {item.name}
+                        </Link>
                       </h3>
                       <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">{item.brand}</p>
                       {(item.color || item.size) && (

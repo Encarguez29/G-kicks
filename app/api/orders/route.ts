@@ -273,7 +273,22 @@ export async function POST(request: NextRequest) {
     // Calculate order totals from items (not from frontend total to avoid double taxation)
     const subtotal = items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0)
     const taxAmount = subtotal * 0.12 // 12% VAT
-    const shippingAmount = subtotal > 2000 ? 0 : 150 // Free shipping over ₱2000
+
+    // Compute shipping to match cart rules (bag size + region surcharge)
+    const totalQuantity = items.reduce((sum, item) => sum + ((item.quantity || 0)), 0)
+    let baseShipping = 0
+    if (totalQuantity <= 3) {
+      baseShipping = 70
+    } else if (totalQuantity <= 6) {
+      baseShipping = 160
+    } else {
+      // For quantities > 6, use Large bag rate (up to 10)
+      baseShipping = 190
+    }
+    const isVisMin = (shipping_address?.shipping_region || '').toLowerCase() === 'visayas/mindanao'
+    const regionSurcharge = isVisMin ? 25 : 0
+    const shippingAmount = baseShipping + regionSurcharge
+
     const discountAmount = 0
     const totalAmount = subtotal + taxAmount + shippingAmount - discountAmount
 
@@ -398,7 +413,7 @@ export async function POST(request: NextRequest) {
       const emailData = {
         orderNumber: order.order_number,
         customerEmail: customer_email,
-        customerName: shipping_address?.fullName || 'Valued Customer',
+        customerName: (shipping_address?.fullName || 'Valued Customer'),
         items: items.map(item => ({
           name: item.product_name,
           quantity: item.quantity,
@@ -406,18 +421,21 @@ export async function POST(request: NextRequest) {
           size: item.size,
           color: item.color
         })),
-        subtotal: total,
-        tax: 0, // Add tax calculation if needed
-        shipping: 0, // Add shipping calculation if needed
-        total: total,
+        // Use computed values so Tax/Shipping display correctly
+        subtotal: subtotal,
+        tax: taxAmount,
+        shipping: shippingAmount,
+        total: totalAmount,
+        // Normalize shipping address keys coming from cart/profile
         shippingAddress: {
           fullName: shipping_address?.fullName || '',
-          address: shipping_address?.address || '',
+          street: shipping_address?.street || shipping_address?.address || '',
           city: shipping_address?.city || '',
-          state: shipping_address?.state || '',
-          postalCode: shipping_address?.postalCode || '',
+          province: shipping_address?.province || shipping_address?.state || '',
+          zipCode: shipping_address?.zipCode || shipping_address?.postalCode || '',
           country: shipping_address?.country || 'Philippines',
-          shipping_region: shipping_address?.shipping_region || 'Luzon'
+          shipping_region: shipping_address?.shipping_region || 'Luzon',
+          phone: shipping_address?.phone || ''
         },
         orderDate: new Date().toLocaleDateString('en-US', {
           year: 'numeric',
@@ -443,7 +461,7 @@ export async function POST(request: NextRequest) {
         orderNumber: orderNumber,
         customerName: customer_email || 'Guest Customer',
         customerEmail: customer_email || 'No email provided',
-        total: total,
+        total: totalAmount,
         itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
         orderDate: new Date().toLocaleDateString('en-US', {
           year: 'numeric',
@@ -461,33 +479,22 @@ export async function POST(request: NextRequest) {
         }))
       }
 
-      const staffNotificationSent = await sendStaffNotification(staffNotificationData)
-      if (staffNotificationSent) {
-        console.log('✅ API: Staff notification email sent successfully to: gkicksstaff@gmail.com')
+      const staffSent = await sendStaffNotification(staffNotificationData)
+      if (staffSent) {
+        console.log('✅ API: Staff notification email sent successfully')
       } else {
-        console.log('⚠️ API: Failed to send staff notification email, but order was created successfully')
+        console.log('⚠️ API: Failed to send staff notification email')
       }
-    } catch (staffEmailError) {
-      console.error('❌ API: Error sending staff notification email:', staffEmailError)
-      // Don't fail the order creation if staff email fails
+    } catch (staffError) {
+      console.error('❌ API: Error sending staff notification email:', staffError)
     }
 
-    console.log('✅ API: Successfully created order:', orderNumber)
-    return NextResponse.json(parsedOrder, { status: 201 })
-
+    // Return created order payload
+    return NextResponse.json(parsedOrder)
   } catch (error) {
     console.error('❌ API: Error creating order:', error)
-    console.error('❌ API: Error stack:', error instanceof Error ? error.stack : 'No stack trace')
-    console.error('❌ API: Error message:', error instanceof Error ? error.message : String(error))
-    
-    // Return more specific error information
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     return NextResponse.json(
-      { 
-        error: 'Internal server error', 
-        message: errorMessage,
-        details: process.env.NODE_ENV === 'development' ? String(error) : undefined
-      },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }

@@ -255,6 +255,7 @@ export interface Order {
   };
   paymentMethod: string;
   payment_screenshot?: string;
+  payment_reference?: string | null;
   trackingNumber?: string;
 }
 
