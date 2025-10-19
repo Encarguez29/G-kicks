@@ -12,7 +12,7 @@ interface JWTPayload {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Get token from cookie or Authorization header
@@ -45,7 +45,7 @@ export async function PATCH(
       )
     }
 
-    const { id: orderId } = params
+    const { id: orderId } = await params
     const orderIdNum = Number(orderId)
     if (Number.isNaN(orderIdNum)) {
       return NextResponse.json(
@@ -128,7 +128,7 @@ export async function PATCH(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return PATCH(request, { params })
 }
