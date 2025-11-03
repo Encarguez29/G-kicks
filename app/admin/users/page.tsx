@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { UserPlus, Users, Eye, EyeOff, Archive, Edit, Shield } from 'lucide-react';
+import PasswordStrengthIndicator from '@/components/ui/password-strength-indicator';
 
 // Admin user interface for admin_users table
 interface StaffAdminUser {
@@ -60,11 +62,12 @@ interface CreateAdminForm {
 }
 
 export default function AdminUsersPage() {
+  const router = useRouter();
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [staffAdminUsers, setStaffAdminUsers] = useState<StaffAdminUser[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
@@ -111,8 +114,8 @@ export default function AdminUsersPage() {
   // Create new staff admin user
   const handleCreateAdminUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
+    setError('');
+    setSuccess('');
 
     // Validation
     if (!createAdminForm.email || !createAdminForm.password || !createAdminForm.first_name || !createAdminForm.last_name || !createAdminForm.username) {
@@ -193,8 +196,8 @@ export default function AdminUsersPage() {
   // Create new admin user
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
+    setError('');
+    setSuccess('');
 
     // Validation
     if (!createForm.email || !createForm.password || !createForm.first_name || !createForm.last_name) {
@@ -257,7 +260,14 @@ export default function AdminUsersPage() {
 
     try {
       setLoading(true);
-      const response = await fetch(`/api/admin/users/gkicks?id=${userId}`, {
+      
+      // Determine if this is an admin user or regular user based on the userToArchive object
+      const isAdminUser = 'username' in userToArchive || 'role' in userToArchive;
+      const apiEndpoint = isAdminUser 
+        ? `/api/admin/admin-users?id=${userId}`
+        : `/api/admin/users/gkicks?id=${userId}`;
+      
+      const response = await fetch(apiEndpoint, {
         method: 'DELETE'
       });
 
@@ -265,9 +275,13 @@ export default function AdminUsersPage() {
       
       if (response.ok) {
         setSuccess('User archived successfully');
-        fetchAdminUsers(); // Refresh the list
-        // Navigate to archive page
-        window.location.href = '/admin/archive';
+        // Refresh the appropriate list based on user type
+        if (isAdminUser) {
+          fetchStaffAdminUsers();
+        } else {
+          fetchAdminUsers();
+        }
+        // Stay on current page after archiving
       } else {
         setError(data.error || 'Failed to archive user');
       }
@@ -381,8 +395,14 @@ export default function AdminUsersPage() {
                     id="phone"
                     type="tel"
                     value={createForm.phone}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, phone: e.target.value }))}
-                    placeholder="+1 (555) 123-4567"
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+                      if (value.length <= 11) {
+                        setCreateForm(prev => ({ ...prev, phone: value }));
+                      }
+                    }}
+                    placeholder="12345678901"
+                    maxLength={11}
                   />
                 </div>
 
@@ -413,6 +433,9 @@ export default function AdminUsersPage() {
                         )}
                       </Button>
                     </div>
+                    {createForm.password && (
+                      <PasswordStrengthIndicator password={createForm.password} />
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Confirm Password *</Label>
@@ -612,6 +635,9 @@ export default function AdminUsersPage() {
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                     </div>
+                    {createAdminForm.password && (
+                      <PasswordStrengthIndicator password={createAdminForm.password} />
+                    )}
                   </div>
 
                   <div className="space-y-2">

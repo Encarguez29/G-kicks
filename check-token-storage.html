@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Check Token Storage</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .output {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Token Storage Checker</h1>
+        
+        <div>
+            <button onclick="checkToken()">Check Current Token</button>
+            <button onclick="generateAndSetToken()">Generate & Set Admin Token</button>
+            <button onclick="clearToken()">Clear Token</button>
+            <button onclick="testDashboardAPI()">Test Dashboard API</button>
+        </div>
+        
+        <div id="output" class="output">Click a button to start...</div>
+    </div>
+
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function checkToken() {
+            output.innerHTML = '';
+            log('🔍 Checking authentication token...', 'info');
+            
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                log(`✅ Token found: ${token.substring(0, 50)}...`, 'success');
+                
+                // Try to decode JWT payload
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    log(`📋 Token payload: ${JSON.stringify(payload, null, 2)}`, 'info');
+                    
+                    // Check expiration
+                    if (payload.exp) {
+                        const expDate = new Date(payload.exp * 1000);
+                        const now = new Date();
+                        if (expDate > now) {
+                            log(`⏰ Token expires: ${expDate.toLocaleString()} (Valid)`, 'success');
+                        } else {
+                            log(`⏰ Token expired: ${expDate.toLocaleString()} (EXPIRED)`, 'error');
+                        }
+                    }
+                } catch (e) {
+                    log(`❌ Failed to decode token: ${e.message}`, 'error');
+                }
+            } else {
+                log('❌ No token found in localStorage', 'error');
+            }
+        }
+        
+        function generateAndSetToken() {
+            output.innerHTML = '';
+            log('🔑 Generating admin token...', 'info');
+            
+            // Create admin token payload
+            const payload = {
+                id: 1,
+                email: 'gkcksdmn@gmail.com',
+                is_admin: true,
+                iat: Math.floor(Date.now() / 1000),
+                exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
+            };
+            
+            // Simple JWT creation (for testing only)
+            const header = btoa(JSON.stringify({alg: 'HS256', typ: 'JWT'}));
+            const payloadB64 = btoa(JSON.stringify(payload));
+            const testToken = `${header}.${payloadB64}.test-signature`;
+            
+            localStorage.setItem('auth_token', testToken);
+            log('✅ Test token generated and stored', 'success');
+            log(`Token: ${testToken}`, 'info');
+        }
+        
+        function clearToken() {
+            output.innerHTML = '';
+            localStorage.removeItem('auth_token');
+            log('🗑️ Token cleared from localStorage', 'success');
+        }
+        
+        async function testDashboardAPI() {
+            output.innerHTML = '';
+            log('🌐 Testing dashboard API...', 'info');
+            
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                log('❌ No token found. Generate one first.', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/dashboard', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include'
+                });
+                
+                log(`📊 Response status: ${response.status}`, response.ok ? 'success' : 'error');
+                
+                const data = await response.json();
+                if (response.ok) {
+                    log('✅ Dashboard API successful!', 'success');
+                    log(`📈 Data keys: ${Object.keys(data).join(', ')}`, 'info');
+                } else {
+                    log(`❌ API Error: ${data.error}`, 'error');
+                    if (data.details) {
+                        log(`Details: ${data.details}`, 'error');
+                    }
+                }
+            } catch (error) {
+                log(`❌ Request failed: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

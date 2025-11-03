@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator"
 import { ReviewForm } from "@/components/review-form-modal"
 import { ThreeDProductViewer } from "@/components/3d-product-viewer-simple"
 import { CustomerReviews } from "@/components/customer-reviews"
+// Removed client-side pricing import since API already applies pricing
 
 import type { Product } from "@/lib/product-data"
 
@@ -45,14 +46,16 @@ export default function ProductPage() {
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [viewMode, setViewMode] = useState<'images' | '3d'>('images')
   const fetchedProductIdRef = useRef<number | null>(null)
-  
+  const [reviews, setReviews] = useState<Review[]>([])
+  // Use prices directly from API since they're already calculated
+  const finalPrice = product?.price || 0
+  const finalOriginalPrice = product?.originalPrice || null
 
   
   interface Review {
     rating: number
     content: string
   }
-  const [reviews] = useState<Review[]>([]) // Placeholder for future reviews
 
   // Memoize product to prevent unnecessary re-renders
   const memoizedProduct = useMemo(() => product, [product?.id])
@@ -317,7 +320,7 @@ export default function ProductPage() {
     )
   }
 
-  const savingsAmount = product.originalPrice ? product.originalPrice - product.price : 0
+  const savingsAmount = finalOriginalPrice && finalPrice ? finalOriginalPrice - finalPrice : 0
 
   // Use gallery_images if available, otherwise show single main image
   const productImages = product.gallery_images && product.gallery_images.length > 0
@@ -572,12 +575,12 @@ export default function ProductPage() {
                 {/* Price */}
                 <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-2">
                   <span className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-yellow-400">
-                    ₱{product.price.toLocaleString()}
+                    ₱{finalPrice.toLocaleString()}
                   </span>
                   <div className="flex items-center space-x-2 sm:space-x-4">
-                    {product.originalPrice && (
+                    {finalOriginalPrice && (
                       <span className="text-lg sm:text-xl text-gray-500 dark:text-gray-400 line-through">
-                        ₱{product.originalPrice.toLocaleString()}
+                        ₱{finalOriginalPrice.toLocaleString()}
                       </span>
                     )}
                     {savingsAmount > 0 && (

@@ -47,6 +47,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { useToast } from "@/hooks/use-toast"
 import { useAdmin } from "@/contexts/admin-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -68,7 +74,9 @@ import {
   Package,
   TrendingDown,
   Grid3X3,
-  Archive
+  Archive,
+  Settings,
+  Info
 } from "lucide-react"
 
 interface Product {
@@ -136,6 +144,15 @@ export default function InventoryPage() {
   const [uploadingImages, setUploadingImages] = useState(false)
   const [uploading3DModel, setUploading3DModel] = useState(false)
 
+  // Pricing settings state
+  const [isPricingSettingsOpen, setIsPricingSettingsOpen] = useState(false)
+  const [pricingSettings, setPricingSettings] = useState({
+    adminFee: 0,
+    markupPercentage: 0
+  })
+  const [loadingPricingSettings, setLoadingPricingSettings] = useState(false)
+  const [savingPricingSettings, setSavingPricingSettings] = useState(false)
+
   // Form state for add/edit product
   const [formData, setFormData] = useState<Partial<Product>>({
     name: "",
@@ -166,6 +183,8 @@ export default function InventoryPage() {
   const [remove3DModel, setRemove3DModel] = useState(false)
   const [colorInput, setColorInput] = useState("")
   const [sizeInput, setSizeInput] = useState("")
+  
+
   
   // Check admin authentication and redirect if not authenticated
   useEffect(() => {
@@ -200,7 +219,7 @@ export default function InventoryPage() {
     try {
       setLoading(true)
       const token = localStorage.getItem('auth_token')
-      const response = await fetch('/api/products', {
+      const response = await fetch('/api/products?raw=true', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -232,8 +251,88 @@ export default function InventoryPage() {
   useEffect(() => {
     if (adminState.isAuthenticated) {
       loadProducts()
+      loadPricingSettings()
     }
   }, [adminState.isAuthenticated])
+
+  // Load pricing settings
+  const loadPricingSettings = async () => {
+    try {
+      setLoadingPricingSettings(true)
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch('/api/pricing-settings', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setPricingSettings({
+          adminFee: parseFloat(data.admin_fee) || 0,
+          markupPercentage: parseFloat(data.markup_percentage) || 0
+        })
+      }
+    } catch (error) {
+      console.error('Error loading pricing settings:', error)
+    } finally {
+      setLoadingPricingSettings(false)
+    }
+  }
+
+  // Save pricing settings
+  const savePricingSettings = async () => {
+    try {
+      setSavingPricingSettings(true)
+      
+      const response = await fetch('/api/pricing-settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          admin_fee: pricingSettings.adminFee,
+          markup_percentage: pricingSettings.markupPercentage
+        })
+      })
+      
+      const responseData = await response.json()
+      
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Pricing settings saved successfully",
+        })
+        setIsPricingSettingsOpen(false)
+        // Reload products to show updated prices
+        loadProducts()
+      } else {
+        toast({
+          title: "Error",
+          description: `Failed to save pricing settings: ${responseData.error || 'Unknown error'}`,
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Error saving pricing settings:', error)
+      toast({
+        title: "Error",
+        description: "Failed to save pricing settings",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingPricingSettings(false)
+    }
+  }
+
+  // Calculate final price with admin fee, markup, and VAT
+  const calculateFinalPrice = (basePrice: number) => {
+    const priceWithAdminFee = basePrice + pricingSettings.adminFee
+    const priceWithMarkup = priceWithAdminFee * (1 + pricingSettings.markupPercentage / 100)
+    const finalPriceWithVAT = priceWithMarkup * (1 + 0.12) // 12% VAT
+    return finalPriceWithVAT
+  }
+
+
 
   // Handle image upload
   const uploadImages = async (files: File[]): Promise<string[]> => {
@@ -440,6 +539,8 @@ export default function InventoryPage() {
     setSizeInput("")
   }
 
+
+
   const handleEdit = (product: Product) => {
     setCurrentProduct(product)
     setFormData({
@@ -570,8 +671,7 @@ export default function InventoryPage() {
           description: "Product archived successfully",
         })
         loadProducts()
-        // Navigate to archive page
-        window.location.href = '/admin/archive'
+        // Stay on current page after archiving
       } else {
         throw new Error('Failed to archive product')
       }
@@ -826,6 +926,16 @@ export default function InventoryPage() {
             <Plus className="h-4 w-4 mr-2" />
             Add Product
           </Button>
+          <Button
+            onClick={() => setIsPricingSettingsOpen(true)}
+            size="sm"
+            variant="outline"
+            className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            Pricing Settings
+          </Button>
+
         </div>
       </div>
 
@@ -960,7 +1070,12 @@ export default function InventoryPage() {
                 <TableHead className="text-foreground">Product</TableHead>
                 <TableHead className="text-foreground">Category</TableHead>
                 <TableHead className="text-foreground">Brand</TableHead>
-                <TableHead className="text-foreground">Price</TableHead>
+                <TableHead className="text-foreground">
+                  <div className="flex items-center gap-1">
+                    Price
+                    <Info className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                </TableHead>
                 <TableHead className="text-foreground">Stock</TableHead>
                 <TableHead className="text-foreground">Status</TableHead>
                 <TableHead className="text-foreground">3D Model</TableHead>
@@ -1002,14 +1117,32 @@ export default function InventoryPage() {
                   <TableCell className="text-foreground">{product.category}</TableCell>
                   <TableCell className="text-foreground">{product.brand}</TableCell>
                   <TableCell className="text-foreground">
-                    <div className="flex flex-col">
-                      <span className="font-medium">₱{product.price}</span>
-                      {product.originalPrice && product.originalPrice > product.price && (
-                        <span className="text-sm text-muted-foreground line-through">
-                          ₱{product.originalPrice}
-                        </span>
-                      )}
-                    </div>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex flex-col cursor-help">
+                            <span className="text-xs text-muted-foreground">Base: ₱{product.price}</span>
+                            <span className="font-medium text-primary">Final: ₱{calculateFinalPrice(product.price || 0).toFixed(2)}</span>
+                            {product.originalPrice && product.originalPrice > product.price && (
+                              <span className="text-xs text-muted-foreground line-through">
+                                Orig: ₱{product.originalPrice}
+                              </span>
+                            )}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <div className="space-y-1 text-xs">
+                            <div className="font-semibold">Price Breakdown:</div>
+                            <div>Base Price: ₱{product.price}</div>
+                            <div>+ Admin Fee: ₱{pricingSettings.adminFee || 0}</div>
+                            <div>= ₱{(parseFloat(String(product.price || 0)) + (pricingSettings.adminFee || 0)).toFixed(2)}</div>
+                            <div>+ Markup ({pricingSettings.markupPercentage || 0}%): ₱{((parseFloat(String(product.price || 0)) + (pricingSettings.adminFee || 0)) * ((pricingSettings.markupPercentage || 0) / 100)).toFixed(2)}</div>
+                            <div>+ VAT (12%): ₱{(((parseFloat(String(product.price || 0)) + (pricingSettings.adminFee || 0)) * (1 + (pricingSettings.markupPercentage || 0) / 100)) * 0.12).toFixed(2)}</div>
+                            <div className="font-semibold border-t pt-1">Final Price: ₱{calculateFinalPrice(parseFloat(String(product.price || 0))).toFixed(2)}</div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1">
@@ -1185,32 +1318,69 @@ export default function InventoryPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="price" className="text-gray-900 dark:text-white">Price *</Label>
-                  <Input
-                    id="price"
-                    type="number"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                    className="bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white"
-                    placeholder="0.00"
-                  />
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="price" className="text-gray-900 dark:text-white">Base Price *</Label>
+                    <Input
+                      id="price"
+                      type="number"
+                      step="0.01"
+                      value={formData.price}
+                      onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                      className="bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white"
+                      placeholder="0.00"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      This is the base price before admin fee and markup
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="originalPrice" className="text-gray-900 dark:text-white">Original Price</Label>
+                    <Input
+                      id="originalPrice"
+                      type="number"
+                      step="0.01"
+                      value={formData.originalPrice}
+                      onChange={(e) => setFormData(prev => ({ ...prev, originalPrice: parseFloat(e.target.value) || 0 }))}
+                      className="bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white"
+                      placeholder="0.00"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="originalPrice" className="text-gray-900 dark:text-white">Original Price</Label>
-                  <Input
-                    id="originalPrice"
-                    type="number"
-                    step="0.01"
-                    value={formData.originalPrice}
-                    onChange={(e) => setFormData(prev => ({ ...prev, originalPrice: parseFloat(e.target.value) || 0 }))}
-                    className="bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white"
-                    placeholder="0.00"
-                  />
-                </div>
+                {/* Pricing Calculation Preview */}
+                {pricingSettings && pricingSettings.adminFee !== undefined && pricingSettings.markupPercentage !== undefined && Number(formData.price) > 0 && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                      Pricing Calculation Preview
+                    </h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                        <span>Base Price:</span>
+                        <span>₱{(formData.price || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                        <span>Admin Fee:</span>
+                        <span>₱{(pricingSettings.adminFee || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                        <span>Markup ({pricingSettings.markupPercentage || 0}%):</span>
+                        <span>₱{(((formData.price || 0) + (pricingSettings.adminFee || 0)) * ((pricingSettings.markupPercentage || 0) / 100)).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                        <span>VAT (12%):</span>
+                        <span>₱{((((formData.price || 0) + (pricingSettings.adminFee || 0)) * (1 + (pricingSettings.markupPercentage || 0) / 100)) * 0.12).toFixed(2)}</span>
+                      </div>
+                      <hr className="border-gray-300 dark:border-gray-600" />
+                      <div className="flex justify-between font-semibold text-blue-900 dark:text-blue-100">
+                        <span>Final Price:</span>
+                        <span>₱{calculateFinalPrice(formData.price || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Stock Management Section */}
@@ -1724,32 +1894,69 @@ export default function InventoryPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-price" className="text-gray-900 dark:text-white">Price *</Label>
-                  <Input
-                    id="edit-price"
-                    type="number"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                    className="bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white"
-                    placeholder="0.00"
-                  />
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-price" className="text-gray-900 dark:text-white">Base Price *</Label>
+                    <Input
+                      id="edit-price"
+                      type="number"
+                      step="0.01"
+                      value={formData.price}
+                      onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                      className="bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white"
+                      placeholder="0.00"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      This is the base price before admin fee and markup
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-originalPrice" className="text-gray-900 dark:text-white">Original Price</Label>
+                    <Input
+                      id="edit-originalPrice"
+                      type="number"
+                      step="0.01"
+                      value={formData.originalPrice}
+                      onChange={(e) => setFormData(prev => ({ ...prev, originalPrice: parseFloat(e.target.value) || 0 }))}
+                      className="bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white"
+                      placeholder="0.00"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="edit-originalPrice" className="text-gray-900 dark:text-white">Original Price</Label>
-                  <Input
-                    id="edit-originalPrice"
-                    type="number"
-                    step="0.01"
-                    value={formData.originalPrice}
-                    onChange={(e) => setFormData(prev => ({ ...prev, originalPrice: parseFloat(e.target.value) || 0 }))}
-                    className="bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white"
-                    placeholder="0.00"
-                  />
-                </div>
+                {/* Pricing Calculation Preview */}
+                {pricingSettings && Number(formData.price) > 0 && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                      Pricing Calculation Preview
+                    </h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                        <span>Base Price:</span>
+                        <span>₱{(formData.price || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                        <span>Admin Fee:</span>
+                        <span>₱{(pricingSettings.adminFee || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                        <span>Markup ({pricingSettings.markupPercentage || 0}%):</span>
+                        <span>₱{(((formData.price || 0) + (pricingSettings.adminFee || 0)) * ((pricingSettings.markupPercentage || 0) / 100)).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-700 dark:text-gray-300">
+                        <span>VAT (12%):</span>
+                        <span>₱{((((formData.price || 0) + (pricingSettings.adminFee || 0)) * (1 + (pricingSettings.markupPercentage || 0) / 100)) * 0.12).toFixed(2)}</span>
+                      </div>
+                      <hr className="border-gray-300 dark:border-gray-600" />
+                      <div className="flex justify-between font-semibold text-blue-900 dark:text-blue-100">
+                        <span>Final Price:</span>
+                        <span>₱{calculateFinalPrice(formData.price || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Stock Management Section */}
@@ -2412,6 +2619,97 @@ export default function InventoryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Pricing Settings Dialog */}
+      <Dialog open={isPricingSettingsOpen} onOpenChange={setIsPricingSettingsOpen}>
+        <DialogContent className="max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-primary">Pricing Settings</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Configure global pricing settings that apply to all products. VAT is fixed at 12%.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="adminFee" className="text-foreground">Admin Fee (₱)</Label>
+              <Input
+                id="adminFee"
+                type="number"
+                min="0"
+                step="0.01"
+                value={pricingSettings.adminFee}
+                onChange={(e) => setPricingSettings(prev => ({ 
+                  ...prev, 
+                  adminFee: parseFloat(e.target.value) || 0 
+                }))}
+                className="bg-background border-border text-foreground"
+                placeholder="Enter admin fee in pesos"
+              />
+              <p className="text-xs text-muted-foreground">
+                Fixed peso amount added to each product's base price
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="markupPercentage" className="text-foreground">Markup Percentage (%)</Label>
+              <Input
+                id="markupPercentage"
+                type="number"
+                min="0"
+                step="0.1"
+                value={pricingSettings.markupPercentage}
+                onChange={(e) => setPricingSettings(prev => ({ 
+                  ...prev, 
+                  markupPercentage: parseFloat(e.target.value) || 0 
+                }))}
+                className="bg-background border-border text-foreground"
+                placeholder="Enter markup percentage"
+              />
+              <p className="text-xs text-muted-foreground">
+                Percentage markup applied after admin fee
+              </p>
+            </div>
+
+            <div className="bg-muted p-3 rounded-lg">
+              <h4 className="text-sm font-semibold text-foreground mb-2">Price Calculation Formula:</h4>
+              <p className="text-xs text-muted-foreground">
+                Final Price = (Base Price + Admin Fee) × (1 + Markup/100) × 1.12
+              </p>
+              <div className="mt-2 text-xs text-muted-foreground">
+                <strong>Example:</strong> Base ₱1,000 + Admin ₱{pricingSettings.adminFee || 0} + {pricingSettings.markupPercentage || 0}% markup + 12% VAT = 
+                <strong className="text-primary"> ₱{calculateFinalPrice(1000).toFixed(2)}</strong>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsPricingSettingsOpen(false)}
+              className="bg-secondary hover:bg-secondary/80 border-border text-secondary-foreground"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={savePricingSettings}
+              disabled={savingPricingSettings}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {savingPricingSettings ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Settings"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
     </div>
   )
 }

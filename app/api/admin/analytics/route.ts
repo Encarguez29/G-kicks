@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
           1 as order_count
         FROM orders 
         WHERE created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
-          AND status IN ('completed', 'delivered', 'processing', 'pending')
+          AND status NOT IN ('cancelled', 'refunded', 'pending')
         UNION ALL
         SELECT 
           created_at as date_col,
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
           1 as order_count
         FROM orders 
         WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-          AND status IN ('completed', 'delivered', 'processing', 'pending')
+          AND status NOT IN ('cancelled', 'refunded', 'pending')
         UNION ALL
         SELECT 
           created_at as date_col,
@@ -146,7 +146,7 @@ export async function GET(request: NextRequest) {
         FROM order_items oi
         JOIN products p ON oi.product_id = p.id
         JOIN orders o ON oi.order_id = o.id
-        WHERE o.status IN ('completed', 'delivered', 'processing', 'pending')
+        WHERE o.status NOT IN ('cancelled', 'refunded', 'pending')
           AND o.created_at >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
         GROUP BY p.category
         
@@ -190,7 +190,7 @@ export async function GET(request: NextRequest) {
         FROM order_items oi
         JOIN products p ON oi.product_id = p.id
         JOIN orders o ON oi.order_id = o.id
-        WHERE o.status IN ('completed', 'delivered', 'processing', 'pending')
+        WHERE o.status NOT IN ('cancelled', 'refunded', 'pending')
           AND o.created_at >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
         GROUP BY p.id, p.name, p.brand, p.category
         
@@ -225,7 +225,7 @@ export async function GET(request: NextRequest) {
       FROM (
         SELECT user_id, NULL as customer_email, total_amount
         FROM orders 
-        WHERE status IN ('completed', 'delivered', 'processing', 'pending')
+        WHERE status IN ('confirmed', 'processing', 'shipped', 'delivered', 'completed', 'returned')
           AND created_at >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
         UNION ALL
         SELECT NULL as user_id, customer_email, total_amount
@@ -243,11 +243,43 @@ export async function GET(request: NextRequest) {
       FROM (
         SELECT total_amount
         FROM orders 
+        WHERE status IN ('confirmed', 'processing', 'shipped', 'delivered', 'completed', 'returned', 'cancelled', 'refunded')
         UNION ALL
         SELECT total_amount
         FROM pos_transactions 
         WHERE status = 'completed'
       ) combined_all
+    `)
+
+    // Revenue totals (only delivered orders)
+    const revenueTotalsResult = await executeQuery(`
+      SELECT 
+        SUM(total_amount) as revenue
+      FROM (
+        SELECT total_amount
+        FROM orders 
+        WHERE status IN ('delivered', 'completed')
+        UNION ALL
+        SELECT total_amount
+        FROM pos_transactions 
+        WHERE status = 'completed'
+      ) delivered_orders
+    `)
+
+    // Order status breakdown
+    const orderStatusResult = await executeQuery(`
+      SELECT 
+        SUM(CASE WHEN status IN ('pending', 'processing', 'shipped') THEN 1 ELSE 0 END) as ongoing_orders,
+        SUM(CASE WHEN status IN ('completed', 'delivered') THEN 1 ELSE 0 END) as delivered_orders,
+        SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) as returned_orders,
+        SUM(CASE WHEN status IN ('cancelled', 'refunded') THEN 1 ELSE 0 END) as cancelled_orders
+      FROM orders
+    `)
+
+    const posStatusResult = await executeQuery(`
+      SELECT 
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_pos
+      FROM pos_transactions
     `)
     
     // Growth metrics - Current month (combining orders and POS transactions)
@@ -260,7 +292,7 @@ export async function GET(request: NextRequest) {
         SELECT user_id, NULL as customer_email, total_amount
         FROM orders 
         WHERE created_at >= ? 
-          AND status IN ('completed', 'delivered', 'processing', 'pending')
+          AND status IN ('confirmed', 'processing', 'shipped', 'delivered', 'completed', 'returned')
         UNION ALL
         SELECT NULL as user_id, customer_email, total_amount
         FROM pos_transactions 
@@ -278,7 +310,7 @@ export async function GET(request: NextRequest) {
         SELECT user_id, NULL as customer_email, total_amount
         FROM orders 
         WHERE created_at >= ? AND created_at <= ?
-          AND status IN ('completed', 'delivered', 'processing', 'pending')
+          AND status IN ('confirmed', 'processing', 'shipped', 'delivered', 'completed', 'returned')
         UNION ALL
         SELECT NULL as user_id, customer_email, total_amount
         FROM pos_transactions 
@@ -358,6 +390,11 @@ export async function GET(request: NextRequest) {
       lastMonth,
       lifetimeTotals: {
         orders: parseInt(String(lifetimeTotalsResult?.[0]?.orders ?? 0)) || 0,
+        revenue: parseFloat(String(revenueTotalsResult?.[0]?.revenue ?? 0)) || 0,
+        ongoingOrders: parseInt(String(orderStatusResult?.[0]?.ongoing_orders ?? 0)) || 0,
+        deliveredOrders: (parseInt(String(orderStatusResult?.[0]?.delivered_orders ?? 0)) || 0) + (parseInt(String(posStatusResult?.[0]?.completed_pos ?? 0)) || 0),
+        returnedOrders: parseInt(String(orderStatusResult?.[0]?.returned_orders ?? 0)) || 0,
+        cancelledOrders: parseInt(String(orderStatusResult?.[0]?.cancelled_orders ?? 0)) || 0,
       },
       recentActivity: recentActivity.map((activity: any) => ({
         type: activity.type,

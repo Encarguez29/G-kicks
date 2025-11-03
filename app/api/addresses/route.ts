@@ -90,7 +90,8 @@ export async function POST(request: NextRequest) {
       last_name,
       phone,
       is_default,
-      shipping_region
+      shipping_region,
+      barangay
     } = body
 
     // Validate required fields
@@ -114,8 +115,8 @@ export async function POST(request: NextRequest) {
     const [result] = await pool.execute(
       `INSERT INTO addresses (
          user_id, first_name, last_name, address_line_1, address_line_2,
-         city, state, postal_code, country, phone, is_default, shipping_region
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         city, barangay, state, postal_code, country, phone, is_default, shipping_region
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user.id,
         first_name,
@@ -123,6 +124,7 @@ export async function POST(request: NextRequest) {
         address_line_1,
         address_line_2 || '',
         city,
+        barangay || '',
         state || '',
         postal_code || '',
         country || 'Philippines',
@@ -180,7 +182,8 @@ export async function PUT(request: NextRequest) {
       last_name,
       phone,
       is_default,
-      shipping_region
+      shipping_region,
+      barangay
     } = body
 
     if (!id) {
@@ -224,7 +227,7 @@ export async function PUT(request: NextRequest) {
     const [result] = await pool.execute(
       `UPDATE addresses SET 
          first_name = ?, last_name = ?, address_line_1 = ?, address_line_2 = ?,
-         city = ?, state = ?, postal_code = ?, country = ?, phone = ?, is_default = ?, shipping_region = ?
+         city = ?, barangay = ?, state = ?, postal_code = ?, country = ?, phone = ?, is_default = ?, shipping_region = ?
        WHERE id = ? AND user_id = ?`,
       [
         first_name,
@@ -232,6 +235,7 @@ export async function PUT(request: NextRequest) {
         address_line_1,
         address_line_2 || '',
         city,
+        barangay || '',
         state || '',
         postal_code || '',
         country || 'Philippines',

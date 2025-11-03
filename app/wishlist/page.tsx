@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Heart, ShoppingCart, Trash2, Star } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { WishlistItemModal } from "@/components/wishlist-item-modal"
 import Image from "next/image"
 
 export default function WishlistPage() {
@@ -20,23 +21,31 @@ export default function WishlistPage() {
   const router = useRouter()
   const { toast } = useToast()
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
+  const [modalItem, setModalItem] = useState<any>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   const handleAddToCart = (item: any) => {
-    const defaultSize = item.sizes?.[0] || "M"
+    setModalItem(item)
+    setIsModalOpen(true)
+  }
 
+  const handleModalAddToCart = (item: any, selectedColor: string, selectedSize: string) => {
     addItem({
       id: item.id.toString(),
       name: item.name,
       price: item.price,
       image: item.image,
-      color: item.colors?.[0] || "Default",
-      size: defaultSize,
+      color: selectedColor,
+      size: selectedSize,
       brand: item.brand || "Unknown",
     })
 
+    // Remove item from wishlist after adding to cart
+    removeFromWishlist(item.id)
+
     toast({
       title: "Added to Cart",
-      description: `${item.name} has been added to your cart.`,
+      description: `${item.name} (${selectedColor}, ${selectedSize}) has been added to your cart and removed from wishlist.`,
     })
   }
 
@@ -67,29 +76,25 @@ export default function WishlistPage() {
   }
 
   const handleAddSelectedToCart = () => {
+    if (selectedItems.size === 0) return
+    
+    // For multiple items, we'll process them one by one through the modal
     const selectedWishlistItems = wishlistState.items.filter((item) =>
       selectedItems.has(item.id.toString())
     )
-
-    selectedWishlistItems.forEach((item) => {
-      const defaultSize = item.sizes?.[0] || "M"
-      addItem({
-        id: item.id.toString(),
-        name: item.name,
-        price: item.price,
-        image: item.image,
-        color: item.colors?.[0] || "Default",
-        size: defaultSize,
-        brand: item.brand || "Unknown",
-      })
-    })
-
-    toast({
-      title: "Added to Cart",
-      description: `${selectedItems.size} item(s) have been added to your cart.`,
-    })
-
-    setSelectedItems(new Set())
+    
+    if (selectedWishlistItems.length > 0) {
+      // Start with the first item
+      setModalItem(selectedWishlistItems[0])
+      setIsModalOpen(true)
+      
+      // Store remaining items for sequential processing
+      const remainingItems = selectedWishlistItems.slice(1)
+      if (remainingItems.length > 0) {
+        // We'll handle this by updating the modal to show next item after current one is processed
+        setModalItem({...selectedWishlistItems[0], _remainingItems: remainingItems})
+      }
+    }
   }
 
   if (wishlistState.items.length === 0) {
@@ -326,6 +331,17 @@ export default function WishlistPage() {
           </div>
         )}
       </main>
+
+      {/* Size and Color Selection Modal */}
+      <WishlistItemModal
+        item={modalItem}
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false)
+          setModalItem(null)
+        }}
+        onAddToCart={handleModalAddToCart}
+      />
     </div>
   )
 }

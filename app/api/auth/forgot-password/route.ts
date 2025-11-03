@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { executeQuery } from '@/lib/database/mysql'
-import { sendPasswordResetEmail } from '@/lib/email-service'
+import { sendPasswordResetCodeEmail } from '@/lib/email/email-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
 
     const user = userArray[0]
 
-    // Generate secure reset token
-    const resetToken = crypto.randomBytes(32).toString('hex')
-    const tokenExpiry = new Date(Date.now() + 3600000) // 1 hour from now
+    // Generate 6-digit verification code
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString()
+    const codeExpiry = new Date(Date.now() + 600000) // 10 minutes from now
 
     // Delete any existing tokens for this user
     await executeQuery(
@@ -49,25 +49,23 @@ export async function POST(request: NextRequest) {
       [user.id]
     )
 
-    // Store reset token in database
+    // Store reset code in database
     await executeQuery(
       'INSERT INTO password_reset_tokens (user_id, email, token, expires_at) VALUES (?, ?, ?, ?)',
-      [user.id, email, resetToken, tokenExpiry]
+      [user.id, email, resetCode, codeExpiry]
     )
 
-    // Send password reset email
-    const resetUrl = `http://72.60.211.237/auth/reset-password?token=${resetToken}`
-    
+    // Send password reset code email
     try {
-      await sendPasswordResetEmail(email, user.first_name, resetUrl)
-      console.log(`Password reset email sent to: ${email}`)
+      await sendPasswordResetCodeEmail(email, user.first_name, resetCode)
+      console.log(`Password reset code sent to: ${email}`)
     } catch (emailError) {
-      console.error('Failed to send password reset email:', emailError)
+      console.error('Failed to send password reset code email:', emailError)
       // Continue execution - don't fail the request if email fails
     }
 
     return NextResponse.json(
-      { message: 'If an account with that email exists, a password reset link has been sent.' },
+      { message: 'If an account with that email exists, a password reset code has been sent.' },
       { status: 200 }
     )
 

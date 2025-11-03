@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '../../../lib/database/mysql';
 import { executeQuery as executeQueryMySQL } from '../../../lib/database/mysql';
+import { applyPricingToProducts } from '../../../lib/pricing-utils';
 import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
 
@@ -107,13 +108,14 @@ export async function POST(request: NextRequest) {
     console.log('🔄 API: Creating new product:', name);
 
     // Create product in MySQL database
+    const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const insertQuery = `
       INSERT INTO products (
         name, slug, brand, price, original_price, category, sku, stock_quantity, low_stock_threshold,
         image_url, gallery_images, description, short_description, is_active, is_new, is_sale,
         colors, sizes, model_3d_url, model_3d_filename, created_at, updated_at
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `;
 
@@ -137,7 +139,9 @@ export async function POST(request: NextRequest) {
       JSON.stringify(colors || []),
       JSON.stringify(sizes || []),
       model_3d_url || null,
-      model_3d_filename || null
+      model_3d_filename || null,
+      currentTimestamp,
+      currentTimestamp
     ];
 
     const result = await executeQueryMySQL(insertQuery, params);
@@ -163,13 +167,66 @@ export async function GET(request: NextRequest) {
   try {
     console.log('🔍 API: Fetching products from MySQL database...');
     
+    const { searchParams } = new URL(request.url);
+    const category = searchParams.get('category');
+    const brand = searchParams.get('brand');
+    const search = searchParams.get('search');
+    const sortBy = searchParams.get('sortBy') || 'created_at';
+    const sortOrder = searchParams.get('sortOrder') || 'desc';
+    const limit = searchParams.get('limit');
+    const offset = searchParams.get('offset');
+    const raw = searchParams.get('raw'); // New parameter to skip pricing calculations
+
+    // Build the WHERE clause
+    let whereClause = 'WHERE is_active = 1 AND (is_deleted = 0 OR is_deleted IS NULL)';
+    const params: any[] = [];
+
+    if (category && category !== 'all') {
+      whereClause += ' AND category = ?';
+      params.push(category);
+    }
+
+    if (brand && brand !== 'all') {
+      whereClause += ' AND brand = ?';
+      params.push(brand);
+    }
+
+    if (search) {
+      whereClause += ' AND (name LIKE ? OR brand LIKE ? OR description LIKE ?)';
+      const searchTerm = `%${search}%`;
+      params.push(searchTerm, searchTerm, searchTerm);
+    }
+
+    // Build the ORDER BY clause
+    const validSortFields = ['name', 'brand', 'price', 'created_at', 'views', 'rating'];
+    const validSortOrders = ['asc', 'desc'];
+    
+    const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'created_at';
+    const safeSortOrder = validSortOrders.includes(sortOrder.toLowerCase()) ? sortOrder.toLowerCase() : 'desc';
+    
+    let orderClause = `ORDER BY ${safeSortBy} ${safeSortOrder.toUpperCase()}`;
+
+    // Build the LIMIT clause
+    let limitClause = '';
+    if (limit) {
+      const limitNum = parseInt(limit);
+      const offsetNum = offset ? parseInt(offset) : 0;
+      if (!isNaN(limitNum) && limitNum > 0) {
+        limitClause = `LIMIT ${limitNum} OFFSET ${offsetNum}`;
+      }
+    }
+    
     const query = `
       SELECT * FROM products 
-      WHERE is_active = 1 AND (is_deleted = 0 OR is_deleted IS NULL)
-      ORDER BY created_at DESC
+      ${whereClause} 
+      ${orderClause}
+      ${limitClause}
     `;
     
-    const data = await executeQueryMySQL(query);
+    console.log('📊 API: Executing query:', query);
+    console.log('📊 API: Query params:', params);
+    
+    const data = await executeQueryMySQL(query, params);
 
     const dataArray = data as any[];
     if (!dataArray || dataArray.length === 0) {
@@ -264,7 +321,15 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json(products);
+    // Apply pricing calculations only if not requesting raw data
+    if (raw === 'true') {
+      console.log('📊 API: Returning raw product data without pricing calculations');
+      return NextResponse.json(products);
+    } else {
+      // Apply pricing calculations to all products
+      const productsWithPricing = await applyPricingToProducts(products);
+      return NextResponse.json(productsWithPricing);
+    }
   } catch (error) {
     console.error('❌ API: Error fetching products:', error);
     return NextResponse.json(
@@ -329,6 +394,7 @@ export async function PUT(request: NextRequest) {
     console.log('🔄 API: Updating product:', productId);
 
     // Update product in MySQL database
+    const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const updateQuery = `
       UPDATE products SET
         name = ?,
@@ -346,7 +412,7 @@ export async function PUT(request: NextRequest) {
         is_sale = ?,
         colors = ?,
         sizes = ?,
-        updated_at = NOW()
+        updated_at = ?
       WHERE id = ?
     `;
 
@@ -366,6 +432,7 @@ export async function PUT(request: NextRequest) {
       is_sale || false,
       JSON.stringify(colors || []),
       JSON.stringify(sizes || []),
+      currentTimestamp,
       parseInt(productId)
     ];
 

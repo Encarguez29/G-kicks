@@ -11,11 +11,19 @@ export async function GET(request: NextRequest) {
     )
     console.log('Orders by status:', ordersResult)
     
-    // Check recent orders
+    // Check recent orders with order numbers
     const recentOrders = await executeQuery(
-      'SELECT id, user_id, total_amount, status, created_at FROM orders ORDER BY created_at DESC LIMIT 5'
+      'SELECT id, order_number, user_id, total_amount, status, created_at FROM orders ORDER BY created_at DESC LIMIT 10'
     )
     console.log('Recent orders:', recentOrders)
+
+    // Check max order number
+    const maxOrderResult = await executeQuery(`
+      SELECT MAX(CAST(SUBSTRING(order_number, 3) AS UNSIGNED)) as max_number 
+      FROM orders 
+      WHERE order_number LIKE 'GK%'
+    `)
+    console.log('Max order number:', maxOrderResult)
     
     // Check POS transactions
     const posResult = await executeQuery(
@@ -48,6 +56,8 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({
       success: true,
+      maxOrderResult,
+      recentOrders,
       data: {
         orders: ordersResult,
         recentOrders,

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { MessageCircle, Send, User, Search, Filter, MoreVertical, X, ChevronLeft } from "lucide-react"
+import { MessageCircle, Send, User, Search, Filter, MoreVertical, X, ChevronLeft, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -65,7 +65,7 @@ export function AdminMessages() {
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(typeof window !== 'undefined' && window.innerWidth < 640)
+    const handleResize = () => setIsMobile(typeof window !== 'undefined' && window.innerWidth < 768)
     handleResize()
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
@@ -76,6 +76,12 @@ export function AdminMessages() {
       setMobileView('list')
     }
   }, [isOpen])
+
+  useEffect(() => {
+    if (selectedConversation && isMobile) {
+      setMobileView('chat')
+    }
+  }, [selectedConversation, isMobile])
 
   // Scroll to bottom when messages change
   const scrollToBottom = () => {
@@ -213,16 +219,20 @@ export function AdminMessages() {
 
   const loadConversationMessages = async (conversationId: string) => {
     try {
-      const response = await fetch(`/api/support/messages?conversation_id=${conversationId}`)
+      console.log('Loading messages for conversation:', conversationId)
+      const response = await fetch(`/api/support/conversations/${conversationId}/messages`)
+      console.log('API response status:', response.status)
       if (response.ok) {
         const data = await response.json()
+        console.log('API response data:', data)
         const formattedMessages: Message[] = data.messages.map((msg: any) => ({
           id: msg.id.toString(),
-          content: msg.message_content,
-          sender: msg.sender_type as "admin" | "customer",
-          timestamp: new Date(msg.created_at),
+          content: msg.content,
+          sender: msg.sender as "admin" | "customer",
+          timestamp: new Date(msg.timestamp),
           read: msg.is_read
         }))
+        console.log('Formatted messages:', formattedMessages)
         
         setConversations(prev => 
           prev.map(conv => 
@@ -232,17 +242,20 @@ export function AdminMessages() {
           )
         )
         
-        const conversation = conversations.find(c => c.id === conversationId)
-        if (conversation) {
-          setSelectedConversation({
-            ...conversation,
-            messages: formattedMessages
-          })
-        }
-      }
-    } catch (error) {
-      console.error('Error loading messages:', error)
-    }
+        // Update selectedConversation if it matches the current conversation
+        setSelectedConversation(prev => 
+          prev && prev.id === conversationId 
+            ? { ...prev, messages: formattedMessages }
+            : prev
+         )
+       } else {
+         console.error('Failed to load messages. Status:', response.status)
+         const errorText = await response.text()
+         console.error('Error response:', errorText)
+       }
+     } catch (error) {
+       console.error('Error loading messages:', error)
+     }
   }
 
   const handleMarkAsRead = async () => {
@@ -400,9 +413,10 @@ export function AdminMessages() {
                           : "hover:bg-accent/50"
                       }`}
                       onClick={() => {
+                        console.log('Selecting conversation:', conversation)
                         setSelectedConversation(conversation)
                         loadConversationMessages(conversation.id)
-                        if (isMobile) setMobileView('chat')
+                        setMobileView('chat') // Always set to chat view when selecting a conversation
                       }}
                     >
                       <div className="flex items-start space-x-3">
@@ -454,11 +468,12 @@ export function AdminMessages() {
           </div>
 
           {/* Chat Area */}
-          <div className={`${isMobile ? (mobileView === 'chat' ? 'flex' : 'hidden') : 'flex'} flex-1 flex-col min-w-0`}>
+          <div className={`${isMobile && mobileView !== 'chat' ? 'hidden' : 'flex'} flex-1 flex-col min-w-0`}>
             {selectedConversation ? (
               <>
+                {console.log('Rendering chat for selectedConversation:', selectedConversation)}
                 {/* Chat Header */}
-                <div className="p-3 sm:p-4 border-b border-border bg-background">
+                <div className="p-4 border-b border-border bg-background">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       {isMobile && (
@@ -467,9 +482,8 @@ export function AdminMessages() {
                           size="icon"
                           className="h-8 w-8 sm:hidden"
                           onClick={() => setMobileView('list')}
-                          aria-label="Back to list"
                         >
-                          <ChevronLeft className="h-4 w-4" />
+                          <ArrowLeft className="h-4 w-4" />
                         </Button>
                       )}
                       <Avatar className="h-9 w-9">

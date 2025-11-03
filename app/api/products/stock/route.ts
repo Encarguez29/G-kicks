@@ -111,9 +111,10 @@ const product = Array.isArray(productResult) ? productResult[0] : productResult
     })
 
     // Update database
+    const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const result = await executeQuery(
-      'UPDATE products SET variants = ?, stock_quantity = ?, updated_at = NOW() WHERE id = ?',
-      [JSON.stringify(variants), totalStock, productId]
+      'UPDATE products SET variants = ?, stock_quantity = ?, updated_at = ? WHERE id = ?',
+      [JSON.stringify(variants), totalStock, currentTimestamp, productId]
     )
 
     if ((result as any).changes === 0) {

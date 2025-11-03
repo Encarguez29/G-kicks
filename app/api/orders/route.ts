@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 import { executeQuery } from '../../../lib/database/mysql'
 import { sendOrderReceipt, sendStaffNotification } from '@/lib/email-service'
+import { generateNextOrderId } from '@/lib/order-utils'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret'
 
@@ -267,12 +268,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Generate order number
-    const orderNumber = `GK${Date.now()}`
+    // Generate sequential order number
+    const orderNumber = await generateNextOrderId()
 
-    // Calculate order totals from items (not from frontend total to avoid double taxation)
+    // Calculate order totals from items
     const subtotal = items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0)
-    const taxAmount = subtotal * 0.12 // 12% VAT
+    const taxAmount = 0 // No VAT
 
     // Compute shipping to match cart rules (bag size + region surcharge)
     const totalQuantity = items.reduce((sum, item) => sum + ((item.quantity || 0)), 0)
@@ -303,14 +304,15 @@ export async function POST(request: NextRequest) {
     let insertValues: any[] = []
     if (hasPaymentReferenceColumn) {
       insertQuery = `INSERT INTO orders (
-         user_id, customer_email, order_number, status, subtotal, tax_amount,
+         user_id, customer_email, order_number, order_source, status, subtotal, tax_amount,
          shipping_amount, discount_amount, total_amount,
          shipping_address, payment_method, payment_screenshot, payment_reference
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       insertValues = [
         user.id,
         customer_email,
         orderNumber,
+        'online', // This is an online order placed through the web API
         status || 'pending',
         subtotal,
         taxAmount,
@@ -324,14 +326,15 @@ export async function POST(request: NextRequest) {
       ]
     } else {
       insertQuery = `INSERT INTO orders (
-         user_id, customer_email, order_number, status, subtotal, tax_amount,
+         user_id, customer_email, order_number, order_source, status, subtotal, tax_amount,
          shipping_amount, discount_amount, total_amount,
          shipping_address, payment_method, payment_screenshot, notes
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       insertValues = [
         user.id,
         customer_email,
         orderNumber,
+        'online', // This is an online order placed through the web API
         status || 'pending',
         subtotal,
         taxAmount,
@@ -428,14 +431,12 @@ export async function POST(request: NextRequest) {
         total: totalAmount,
         // Normalize shipping address keys coming from cart/profile
         shippingAddress: {
-          fullName: shipping_address?.fullName || '',
           street: shipping_address?.street || shipping_address?.address || '',
+          barangay: shipping_address?.barangay || '',
           city: shipping_address?.city || '',
-          province: shipping_address?.province || shipping_address?.state || '',
+          state: shipping_address?.province || shipping_address?.state || '',
           zipCode: shipping_address?.zipCode || shipping_address?.postalCode || '',
-          country: shipping_address?.country || 'Philippines',
-          shipping_region: shipping_address?.shipping_region || 'Luzon',
-          phone: shipping_address?.phone || ''
+          country: shipping_address?.country || 'Philippines'
         },
         orderDate: new Date().toLocaleDateString('en-US', {
           year: 'numeric',
@@ -471,7 +472,7 @@ export async function POST(request: NextRequest) {
           minute: '2-digit'
         }),
         items: items.map(item => ({
-          name: item.name,
+          name: item.product_name,
           quantity: item.quantity,
           price: item.price,
           size: item.size,
@@ -533,11 +534,12 @@ export async function PUT(request: NextRequest) {
 
     console.log('🔍 API: Updating order status:', id, 'to:', status)
 
+    const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ')
     const result = await executeQuery(
       `UPDATE orders 
-       SET status = ?, tracking_number = ?, updated_at = NOW()
+       SET status = ?, tracking_number = ?, updated_at = ?
        WHERE id = ? AND user_id = ?`,
-      [status, tracking_number || null, id, user.id]
+      [status, tracking_number || null, currentTimestamp, id, user.id]
     ) as any
 
     if ((result as any).affectedRows === 0) {

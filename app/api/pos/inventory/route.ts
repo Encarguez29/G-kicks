@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/database/mysql'
+import { applyPricingToProducts } from '@/lib/pricing-utils'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import jwt from 'jsonwebtoken'
@@ -143,9 +144,12 @@ export async function GET(request: NextRequest) {
       }
     }))
     
-    console.log(`✅ API: Successfully returned ${formattedInventory.length} inventory items`)
+    // Apply pricing calculations to all inventory items
+    const inventoryWithPricing = await applyPricingToProducts(formattedInventory)
     
-    return NextResponse.json(formattedInventory)
+    console.log(`✅ API: Successfully returned ${inventoryWithPricing.length} inventory items with pricing calculations`)
+    
+    return NextResponse.json(inventoryWithPricing)
   } catch (error) {
     console.error('❌ API: Error fetching POS inventory:', error)
     return NextResponse.json(
@@ -202,30 +206,32 @@ export async function PUT(request: NextRequest) {
     let updateQuery: string
     let params: any[]
     
+    const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ')
+    
     if (operation === 'set') {
       // Set absolute quantity
       updateQuery = `
         UPDATE products 
-        SET stock_quantity = ?, updated_at = NOW()
+        SET stock_quantity = ?, updated_at = ?
         WHERE id = ?
       `
-      params = [quantity, productId]
+      params = [quantity, currentTimestamp, productId]
     } else if (operation === 'decrease') {
       // Decrease quantity (for sales)
       updateQuery = `
         UPDATE products 
-        SET stock_quantity = GREATEST(0, stock_quantity - ?), updated_at = NOW()
+        SET stock_quantity = GREATEST(0, stock_quantity - ?), updated_at = ?
         WHERE id = ? AND stock_quantity >= ?
       `
-      params = [quantity, productId, quantity]
+      params = [quantity, currentTimestamp, productId, quantity]
     } else {
       // Default: increase quantity
       updateQuery = `
         UPDATE products 
-        SET stock_quantity = stock_quantity + ?, updated_at = NOW()
+        SET stock_quantity = stock_quantity + ?, updated_at = ?
         WHERE id = ?
       `
-      params = [quantity, productId]
+      params = [quantity, currentTimestamp, productId]
     }
     
     const result = await executeQuery(updateQuery, params)

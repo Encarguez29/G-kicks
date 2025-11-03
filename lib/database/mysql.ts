@@ -45,6 +45,20 @@ export async function executeQuery(query: string, params: (string | number | boo
   }
 }
 
+// Execute non-prepared statement (for transaction control commands)
+export async function executeNonPreparedQuery(query: string): Promise<any> {
+  try {
+    console.log('🔍 DB: Executing non-prepared query:', query)
+    const [results] = await pool.query(query);
+    console.log('✅ DB: Non-prepared query executed successfully')
+    return results;
+  } catch (error) {
+    console.error('❌ DB: Non-prepared MySQL query failed:', error);
+    console.error('❌ DB: Failed query:', query);
+    throw error;
+  }
+}
+
 // Get all products
 export async function getAllProducts() {
   const query = `
@@ -120,6 +134,8 @@ export async function insertProduct(product: any) {
 
 // Update product
 export async function updateProduct(id: number, product: any) {
+  const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  
   const query = `
     UPDATE products SET
       name = ?, brand = ?, description = ?, price = ?,
@@ -128,7 +144,7 @@ export async function updateProduct(id: number, product: any) {
       is_new = ?, is_sale = ?, category = ?,
       stock_quantity = ?, sku = ?, is_active = ?,
       model_3d_url = ?, model_3d_filename = ?,
-      updated_at = CURRENT_TIMESTAMP
+      updated_at = ?
     WHERE id = ?
   `;
   
@@ -139,7 +155,7 @@ export async function updateProduct(id: number, product: any) {
     JSON.stringify(product.color_images), product.is_new,
     product.is_sale, product.category, product.stock_quantity,
     product.sku, product.is_active, product.model_3d_url,
-    product.model_3d_filename, id
+    product.model_3d_filename, currentTimestamp, id
   ];
   
   return await executeQuery(query, params);
@@ -147,14 +163,16 @@ export async function updateProduct(id: number, product: any) {
 
 // Delete product (soft delete)
 export async function deleteProduct(id: number) {
+  const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  
   const query = `
     UPDATE products SET 
       is_deleted = 1, 
-      updated_at = CURRENT_TIMESTAMP 
+      updated_at = ? 
     WHERE id = ?
   `;
   
-  return await executeQuery(query, [id]);
+  return await executeQuery(query, [currentTimestamp, id]);
 }
 
 export default pool;

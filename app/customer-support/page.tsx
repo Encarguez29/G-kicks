@@ -36,16 +36,30 @@ interface Message {
   conversation_id?: string
 }
 
+interface OrderItem {
+  id: string
+  product_id?: number
+  quantity: number
+  size: string | null
+  color: string | null
+  price: number
+  name?: string
+  brand?: string
+  image_url?: string
+}
+
 interface Order {
   id: string
+  orderNumber: string
+  date: string
   status: string
   total: number
-  items: Array<{
-    name: string
-    quantity: number
-    price: number
-  }>
-  orderDate: Date
+  items: OrderItem[]
+  shipping_address: any
+  trackingNumber?: string
+  paymentMethod?: string
+  payment_screenshot?: string
+  payment_reference?: string | null
 }
 
 export default function CustomerSupportPage() {
@@ -64,29 +78,49 @@ export default function CustomerSupportPage() {
   useEffect(() => {
     if (user) {
       loadOrCreateConversation()
-      
-      setUserOrders([
-        {
-          id: "ORD-2024-001",
-          status: "shipped",
-          total: 129.99,
-          items: [
-            { name: "Nike Air Max 270", quantity: 1, price: 129.99 }
-          ],
-          orderDate: new Date("2024-01-15")
-        },
-        {
-          id: "ORD-2024-002", 
-          status: "processing",
-          total: 89.99,
-          items: [
-            { name: "Adidas Ultraboost 22", quantity: 1, price: 89.99 }
-          ],
-          orderDate: new Date("2024-01-20")
-        }
-      ])
+      fetchUserOrders()
     }
   }, [user])
+
+  // Fetch user's actual orders from the database
+  const fetchUserOrders = async () => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (!token) return
+
+      const response = await fetch('/api/orders', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch orders')
+      }
+
+      const data = await response.json()
+      // Map API response to frontend interface
+      const mappedOrders = (data || []).map((order: any) => ({
+        id: order.id,
+        orderNumber: order.order_number,
+        date: order.created_at,
+        status: order.status,
+        total: order.total,
+        items: order.items || [],
+        shipping_address: order.shipping_address || {},
+        trackingNumber: order.tracking_number,
+        paymentMethod: order.paymentMethod,
+        payment_screenshot: order.payment_screenshot,
+        payment_reference: order.payment_reference
+      }))
+      setUserOrders(mappedOrders)
+    } catch (error) {
+      console.error("Failed to load orders:", error)
+      setUserOrders([])
+    }
+  }
 
   // Real-time polling for new admin messages
   useEffect(() => {
@@ -272,6 +306,160 @@ export default function CustomerSupportPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  // Automated responses for Quick Help
+  const getAutomatedResponse = (message: string): string => {
+    if (message.includes("return an item")) {
+      return "I can help you with returns! Here's what you need to know:\n\n• You have 30 days from delivery to return items\n• Items must be in original condition with tags\n• Free returns for defective items\n• Return shipping fee applies for size/style changes\n\nTo start a return, please provide your order number and I'll guide you through the process."
+    }
+    
+    if (message.includes("shipping")) {
+      return "Here are our shipping options:\n\n📦 Standard Shipping (5-7 business days) - FREE on orders over $75\n🚚 Express Shipping (2-3 business days) - $9.99\n⚡ Next Day Delivery (1 business day) - $19.99\n\nAll orders are processed within 24 hours. You'll receive tracking information once your order ships!"
+    }
+    
+    if (message.includes("sizing")) {
+      return "I'm here to help with sizing! Here's our size guide:\n\n👟 **Sneakers**: Run true to size, but if you prefer a looser fit, go up 0.5 size\n👕 **Apparel**: Check our size chart for measurements\n🧢 **Accessories**: Most items are one-size-fits-all\n\n💡 **Pro tip**: Check the product reviews - customers often mention if items run large or small!\n\nNeed help with a specific item? Let me know the product name!"
+    }
+    
+    return "Thanks for your message! Our support team will get back to you shortly."
+  }
+
+  const handleQuickHelp = async (message: string) => {
+    setNewMessage(message)
+    
+    // Send the message immediately
+    let currentConversationId = conversationId
+    
+    if (!currentConversationId) {
+      console.log('No conversation ID, creating new conversation...')
+      currentConversationId = await createNewConversation()
+      if (!currentConversationId) {
+        console.error('Failed to create conversation')
+        return
+      }
+    }
+
+    console.log('Sending quick help message with conversation ID:', currentConversationId)
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      content: message,
+      sender: "user",
+      timestamp: new Date(),
+      orderId: selectedOrder || undefined,
+      type: selectedOrder ? "order-inquiry" : "text"
+    }
+
+    setMessages(prev => [...prev, userMessage])
+    setNewMessage("")
+    setIsTyping(true)
+
+    try {
+      // Send message to API
+      const token = localStorage.getItem('auth_token')
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      const response = await fetch('/api/support/messages', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          conversation_id: currentConversationId,
+          message_content: message,
+          sender_type: 'customer',
+          order_id: selectedOrder || null
+        })
+      })
+
+      console.log('Quick help message send response status:', response.status)
+
+      if (response.ok) {
+         // Message sent successfully
+         setIsTyping(false)
+         
+         // Add automated response immediately
+         setTimeout(() => {
+           const automatedResponse: Message = {
+             id: (Date.now() + 1).toString(),
+             content: getAutomatedResponse(message),
+             sender: "support",
+             timestamp: new Date(),
+             type: "text"
+           }
+           setMessages(prev => [...prev, automatedResponse])
+         }, 1000) // 1 second delay to simulate typing
+         
+         // Poll for admin replies every 3 seconds (in case admin wants to add more)
+        const pollForReplies = setInterval(async () => {
+          try {
+            const token = localStorage.getItem('auth_token')
+            const headers: HeadersInit = {
+              'Content-Type': 'application/json',
+            }
+            if (token) {
+              headers['Authorization'] = `Bearer ${token}`
+            }
+
+            const messagesResponse = await fetch(`/api/support/messages?conversation_id=${currentConversationId}`, {
+              headers
+            })
+            if (messagesResponse.ok) {
+              const data = await messagesResponse.json()
+              const latestMessages: Message[] = data.messages.map((msg: any) => ({
+                id: msg.id.toString(),
+                content: msg.message_content,
+                sender: msg.sender_type === 'customer' ? 'user' : (msg.sender_type === 'admin' ? 'admin' : 'support'),
+                timestamp: new Date(msg.created_at),
+                type: msg.message_type || 'text',
+                conversation_id: currentConversationId
+              }))
+              
+              // Only update if there are new messages
+              setMessages(prev => {
+                // Get server messages
+                const serverMessages = latestMessages
+                
+                // Find local automated responses that aren't on server
+                const localAutomatedResponses = prev.filter(msg => 
+                  msg.sender === 'support' && 
+                  !serverMessages.find(serverMsg => serverMsg.id === msg.id)
+                )
+                
+                // Combine server messages with local automated responses
+                const combinedMessages = [...serverMessages, ...localAutomatedResponses]
+                  .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+                
+                if (prev.length !== combinedMessages.length || 
+                    JSON.stringify(prev) !== JSON.stringify(combinedMessages)) {
+                  return combinedMessages
+                }
+                return prev
+              })
+            }
+          } catch (error) {
+            console.error('Error polling for replies:', error)
+          }
+        }, 3000)
+
+        // Stop polling after 30 seconds
+        setTimeout(() => {
+          clearInterval(pollForReplies)
+        }, 30000)
+
+      } else {
+        const errorText = await response.text()
+        console.error('Failed to send quick help message:', response.status, errorText)
+        setIsTyping(false)
+      }
+    } catch (error) {
+      console.error('Error sending quick help message:', error)
+      setIsTyping(false)
+    }
+  }
+
   const handleSendMessage = async () => {
     if (!newMessage.trim()) {
       console.log('No message content')
@@ -301,7 +489,8 @@ export default function CustomerSupportPage() {
     }
 
     setMessages(prev => [...prev, userMessage])
-    const messageContent = newMessage
+    const messageContent = newMessage.trim()
+    console.log('Sending message content:', messageContent, 'Length:', messageContent.length)
     setNewMessage("")
     setIsTyping(true)
 
@@ -315,15 +504,18 @@ export default function CustomerSupportPage() {
         headers['Authorization'] = `Bearer ${token}`
       }
 
+      const requestBody = {
+        conversation_id: currentConversationId,
+        message_content: messageContent,
+        sender_type: 'customer',
+        order_id: selectedOrder || null
+      }
+      console.log('Request body:', requestBody)
+
       const response = await fetch('/api/support/messages', {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          conversation_id: currentConversationId,
-          message_content: messageContent,
-          sender_type: 'customer',
-          order_id: selectedOrder || null
-        })
+        body: JSON.stringify(requestBody)
       })
 
       console.log('Message send response status:', response.status)
@@ -378,6 +570,17 @@ export default function CustomerSupportPage() {
       } else {
         const errorText = await response.text()
         console.error('Failed to send message:', response.status, errorText)
+        
+        // Try to parse error as JSON to get the actual error message
+        try {
+          const errorData = JSON.parse(errorText)
+          console.error('API Error:', errorData.error)
+          alert(`Failed to send message: ${errorData.error}`)
+        } catch {
+          console.error('Raw error response:', errorText)
+          alert(`Failed to send message: ${errorText}`)
+        }
+        
         setIsTyping(false)
       }
     } catch (error) {
@@ -500,14 +703,14 @@ export default function CustomerSupportPage() {
                     onClick={() => setSelectedOrder(selectedOrder === order.id ? null : order.id)}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-sm">{order.id}</span>
+                      <span className="font-medium text-sm">{order.orderNumber || order.id}</span>
                       <Badge className={`${getStatusColor(order.status)} text-white text-xs`}>
                         {getStatusIcon(order.status)}
                         <span className="ml-1">{order.status}</span>
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      ${order.total} • {order.orderDate.toLocaleDateString()}
+                      ${order.total} • {new Date(order.date).toLocaleDateString()}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {order.items.length} item{order.items.length > 1 ? "s" : ""}
@@ -537,7 +740,7 @@ export default function CustomerSupportPage() {
                   variant="ghost"
                   size="sm"
                   className="w-full justify-start"
-                  onClick={() => setNewMessage("I want to return an item")}
+                  onClick={() => handleQuickHelp("I want to return an item")}
                 >
                   Return an item
                 </Button>
@@ -545,7 +748,7 @@ export default function CustomerSupportPage() {
                   variant="ghost"
                   size="sm"
                   className="w-full justify-start"
-                  onClick={() => setNewMessage("What are your shipping options?")}
+                  onClick={() => handleQuickHelp("What are your shipping options?")}
                 >
                   Shipping info
                 </Button>
@@ -553,7 +756,7 @@ export default function CustomerSupportPage() {
                   variant="ghost"
                   size="sm"
                   className="w-full justify-start"
-                  onClick={() => setNewMessage("I have a question about sizing")}
+                  onClick={() => handleQuickHelp("I have a question about sizing")}
                 >
                   Size guide
                 </Button>
@@ -564,10 +767,10 @@ export default function CustomerSupportPage() {
           {/* Chat Area */}
           <div className="lg:col-span-3">
             <Card className="h-[600px] flex flex-col">
-              <CardHeader className="flex-shrink-0">
+              <CardHeader className="flex-shrink-0 px-4 py-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center">
-                    <MessageCircle className="h-5 w-5 mr-2" />
+                  <CardTitle className="flex items-center text-base sm:text-lg">
+                    <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                     Chat with Support
                   </CardTitle>
                   {selectedOrder && (
@@ -581,15 +784,15 @@ export default function CustomerSupportPage() {
               <Separator />
               
               {/* Messages */}
-              <CardContent className="flex-1 p-0">
+              <CardContent className="flex-1 p-0 overflow-hidden">
                 <ScrollArea className="h-full p-4">
-                  <div className="space-y-4">
+                  <div className="space-y-4 w-full overflow-hidden">
                     {messages.map((message) => (
                       <div
                         key={message.id}
-                        className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
+                        className={`flex w-full ${message.sender === "user" ? "justify-end" : "justify-start"}`}
                       >
-                        <div className={`flex items-start space-x-2 max-w-[80%] ${
+                        <div className={`flex items-start space-x-2 max-w-[85%] sm:max-w-[80%] md:max-w-[75%] min-w-0 ${
                           message.sender === "user" ? "flex-row-reverse space-x-reverse" : ""
                         }`}>
                           <Avatar className="h-8 w-8 flex-shrink-0">
@@ -608,15 +811,15 @@ export default function CustomerSupportPage() {
                             )}
                           </Avatar>
                           
-                          <div className={`rounded-lg p-3 ${
+                          <div className={`rounded-lg p-3 min-w-0 break-words overflow-wrap-anywhere ${
                             message.sender === "user"
                               ? "bg-blue-500 text-white"
                               : message.sender === "admin"
                               ? "bg-green-100 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
                               : "bg-muted"
                           }`}>
-                            <p className="text-sm">{message.content}</p>
-                            <p className={`text-xs mt-1 ${
+                            <p className="text-sm break-words whitespace-pre-wrap">{message.content}</p>
+                            <p className={`text-xs mt-1 break-words ${
                               message.sender === "user" 
                                 ? "text-blue-100" 
                                 : message.sender === "admin"
@@ -663,16 +866,16 @@ export default function CustomerSupportPage() {
               <Separator />
               
               {/* Message Input */}
-              <div className="p-4 flex-shrink-0">
+              <div className="p-3 sm:p-4 flex-shrink-0">
                 <div className="flex space-x-2">
                   <Input
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder={selectedOrder ? `Ask about order ${selectedOrder}...` : "Type your message..."}
-                    className="flex-1"
+                    className="flex-1 text-sm"
                   />
-                  <Button onClick={handleSendMessage} disabled={!newMessage.trim()}>
+                  <Button onClick={handleSendMessage} disabled={!newMessage.trim()} size="sm">
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>

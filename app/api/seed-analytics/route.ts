@@ -86,11 +86,11 @@ export async function POST(request: NextRequest) {
     for (const order of sampleOrders) {
       await executeQuery(`
         INSERT INTO orders (
-          user_id, order_number, status, payment_status, payment_method,
+          user_id, order_number, order_source, status, payment_status, payment_method,
           subtotal, tax_amount, shipping_amount, total_amount, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        order.user_id, order.order_number, order.status, order.payment_status,
+        order.user_id, order.order_number, 'online', order.status, order.payment_status,
         order.payment_method, order.subtotal, order.tax_amount, order.shipping_amount,
         order.total_amount, order.created_at
       ])

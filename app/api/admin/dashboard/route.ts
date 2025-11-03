@@ -30,11 +30,25 @@ export async function GET(request: NextRequest) {
     // Verify token
     let decoded
     try {
-      decoded = jwt.verify(token, JWT_SECRET) as { userId: string, email: string }
+      decoded = jwt.verify(token, JWT_SECRET) as { id?: string, userId?: string, email: string, is_admin?: boolean }
+      console.log('✅ Dashboard API: Token verified for user:', decoded.email)
     } catch (error) {
-      console.log('❌ Dashboard API: Invalid token')
+      console.log('❌ Dashboard API: Invalid token:', error)
       return NextResponse.json(
         { error: 'Invalid authentication token' },
+        { status: 401 }
+      )
+    }
+
+    // Use id or userId from token
+    const userId = decoded.id || decoded.userId
+    console.log('🔍 Dashboard API: Checking admin permissions for user ID:', userId)
+
+    // Validate userId exists
+    if (!userId) {
+      console.log('❌ Dashboard API: No user ID found in token')
+      return NextResponse.json(
+        { error: 'Invalid token: missing user ID' },
         { status: 401 }
       )
     }
@@ -42,7 +56,7 @@ export async function GET(request: NextRequest) {
     // Check if user is admin or staff with dashboard permissions
     const adminUsers = await executeQuery(
       'SELECT id, email, is_admin FROM users WHERE id = ? AND is_admin = 1',
-      [decoded.userId]
+      [userId]
     ) as any[]
 
     // Check if user is staff in admin_users table
@@ -50,6 +64,9 @@ export async function GET(request: NextRequest) {
       'SELECT id, email, role, permissions FROM admin_users WHERE email = ? AND role = "staff" AND is_active = 1',
       [decoded.email]
     ) as any[]
+
+    console.log('🔍 Dashboard API: Admin users found:', adminUsers.length)
+    console.log('🔍 Dashboard API: Staff users found:', staffUsers.length)
 
     // Deny access for staff users (dashboard access removed)
     if (adminUsers.length === 0 && staffUsers.length > 0) {
@@ -80,6 +97,8 @@ export async function GET(request: NextRequest) {
       totalOrders: 0,
       pendingOrders: 0,
       completedOrders: 0,
+      returnedOrders: 0,
+      cancelledOrders: 0,
       totalRevenue: 0,
       totalUsers: 0,
       recentOrders: [],
@@ -116,10 +135,12 @@ export async function GET(request: NextRequest) {
     try {
       const orderStats = await executeQuery(`
         SELECT 
-          (SELECT COUNT(*) FROM orders) + (SELECT COUNT(*) FROM pos_transactions WHERE status = 'completed') as total_orders,
+          (SELECT COUNT(*) FROM orders WHERE status IN ('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'completed', 'returned', 'cancelled', 'refunded')) + (SELECT COUNT(*) FROM pos_transactions WHERE status = 'completed') as total_orders,
           (SELECT COUNT(*) FROM orders WHERE status = 'pending') as pending_orders,
           (SELECT COUNT(*) FROM orders WHERE status IN ('completed', 'delivered')) + (SELECT COUNT(*) FROM pos_transactions WHERE status = 'completed') as completed_orders,
-          (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status NOT IN ('cancelled', 'refunded')) + (SELECT COALESCE(SUM(total_amount), 0) FROM pos_transactions WHERE status = 'completed') as total_revenue
+          (SELECT COUNT(*) FROM orders WHERE status = 'returned') as returned_orders,
+          (SELECT COUNT(*) FROM orders WHERE status IN ('cancelled', 'refunded')) as cancelled_orders,
+          (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status IN ('delivered', 'completed')) + (SELECT COALESCE(SUM(total_amount), 0) FROM pos_transactions WHERE status = 'completed') as total_revenue
       `)
       
       if (Array.isArray(orderStats) && orderStats.length > 0) {
@@ -127,6 +148,8 @@ export async function GET(request: NextRequest) {
         dashboardStats.totalOrders = parseInt(stats.total_orders) || 0
         dashboardStats.pendingOrders = parseInt(stats.pending_orders) || 0
         dashboardStats.completedOrders = parseInt(stats.completed_orders) || 0
+        dashboardStats.returnedOrders = parseInt(stats.returned_orders) || 0
+        dashboardStats.cancelledOrders = parseInt(stats.cancelled_orders) || 0
         dashboardStats.totalRevenue = parseFloat(stats.total_revenue) || 0
       }
     } catch (error) {
@@ -250,8 +273,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(dashboardStats)
   } catch (error) {
     console.error('❌ API: Error fetching dashboard data:', error)
+    console.error('❌ API: Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    console.error('❌ API: Error message:', error instanceof Error ? error.message : String(error))
     return NextResponse.json(
-      { error: 'Failed to fetch dashboard data' },
+      { error: 'Failed to fetch dashboard data', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     )
   }

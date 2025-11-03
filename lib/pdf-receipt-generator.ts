@@ -2,7 +2,7 @@ import puppeteer from 'puppeteer';
 import path from 'path';
 import fs from 'fs';
 
-// Interface for POS transaction data
+// Interface for POS invoice data
 export interface POSReceiptData {
   transactionId: string;
   receiptNumber: string;
@@ -28,7 +28,7 @@ export interface POSReceiptData {
   cashierName?: string;
 }
 
-// Generate HTML template for the receipt
+// Generate HTML template for the invoice
 function generateReceiptHTML(data: POSReceiptData): string {
   const formatCurrency = (amount: number) => `₱${amount.toFixed(2)}`;
   const formatDate = (dateString: string) => {
@@ -42,13 +42,17 @@ function generateReceiptHTML(data: POSReceiptData): string {
     });
   };
 
+  // Calculate VAT breakdown
+  const subtotalBeforeVAT = data.total / 1.12; // Remove VAT to get base amount
+  const vatAmount = data.total - subtotalBeforeVAT; // 12% VAT
+
   return `
     <!DOCTYPE html>
     <html lang="en">
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>GKICKS Receipt - ${data.receiptNumber}</title>
+      <title>GKICKS Invoice - ${data.receiptNumber}</title>
       <style>
         * {
           margin: 0;
@@ -78,6 +82,8 @@ function generateReceiptHTML(data: POSReceiptData): string {
           padding: 30px 20px;
           text-align: center;
         }
+        
+
         
         .logo {
           font-size: 32px;
@@ -213,26 +219,7 @@ function generateReceiptHTML(data: POSReceiptData): string {
           color: #667eea;
         }
         
-        .payment-section {
-          background: #e8f2ff;
-          padding: 20px;
-          border-radius: 8px;
-          margin-bottom: 25px;
-          border: 1px solid #b3d9ff;
-        }
-        
-        .payment-section h3 {
-          color: #667eea;
-          margin-bottom: 12px;
-          font-size: 16px;
-        }
-        
-        .payment-row {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 6px;
-          font-size: 14px;
-        }
+
         
         .footer {
           text-align: center;
@@ -281,7 +268,7 @@ function generateReceiptHTML(data: POSReceiptData): string {
           
           <div class="receipt-info">
             <div>
-              <span>Receipt #:</span>
+              <span>Invoice #:</span>
               <span><strong>${data.receiptNumber}</strong></span>
             </div>
             <div>
@@ -337,46 +324,31 @@ function generateReceiptHTML(data: POSReceiptData): string {
           
           <div class="totals-section">
             <div class="total-row">
-              <span>Subtotal:</span>
-              <span>${formatCurrency(data.subtotal)}</span>
+              <span>Subtotal (before VAT):</span>
+              <span>${formatCurrency(subtotalBeforeVAT)}</span>
             </div>
-            ${data.tax ? `
+            
             <div class="total-row">
-              <span>Tax:</span>
-              <span>${formatCurrency(data.tax)}</span>
+              <span>VAT (12%):</span>
+              <span>${formatCurrency(vatAmount)}</span>
             </div>
-            ` : ''}
+            
             <div class="total-row final">
-              <span>Total Amount:</span>
+              <span>Total Amount (VAT Inclusive):</span>
               <span>${formatCurrency(data.total)}</span>
             </div>
           </div>
           
-          <div class="payment-section">
-            <h3>Payment Information</h3>
-            <div class="payment-row">
-              <span>Payment Method:</span>
-              <span><strong>${data.paymentMethod.toUpperCase()}</strong></span>
+            <div class="total-row">
+              <span>Payment (${data.paymentMethod.toUpperCase()}):</span>
+              <span><strong>${formatCurrency(data.cashReceived || data.total)}</strong></span>
             </div>
-            ${data.paymentReference ? `
-            <div class="payment-row">
-              <span>Reference:</span>
-              <span>${data.paymentReference}</span>
+            ${data.changeGiven && data.changeGiven > 0 ? `
+            <div class="total-row">
+              <span>Change:</span>
+              <span><strong>${formatCurrency(data.changeGiven)}</strong></span>
             </div>
             ` : ''}
-            ${data.cashReceived ? `
-            <div class="payment-row">
-              <span>Cash Received:</span>
-              <span>${formatCurrency(data.cashReceived)}</span>
-            </div>
-            ` : ''}
-            ${data.changeGiven ? `
-            <div class="payment-row">
-              <span>Change Given:</span>
-              <span>${formatCurrency(data.changeGiven)}</span>
-            </div>
-            ` : ''}
-          </div>
         </div>
         
         <div class="footer">
@@ -384,7 +356,7 @@ function generateReceiptHTML(data: POSReceiptData): string {
           <div class="footer-text">
             We appreciate your business and hope you enjoy your new shoes.
             <br>
-            Please keep this receipt for your records.
+            Please keep this invoice for your records.
           </div>
           <div class="contact-info">
             For support or inquiries, please contact us at support@gkicks.com
@@ -398,7 +370,7 @@ function generateReceiptHTML(data: POSReceiptData): string {
   `;
 }
 
-// Generate PDF receipt
+// Generate PDF invoice
 export async function generatePOSReceiptPDF(data: POSReceiptData): Promise<Buffer> {
   let browser;
   
@@ -438,8 +410,8 @@ export async function generatePOSReceiptPDF(data: POSReceiptData): Promise<Buffe
     return Buffer.from(pdfBuffer);
     
   } catch (error) {
-    console.error('Error generating PDF receipt:', error);
-    throw new Error('Failed to generate PDF receipt');
+    console.error('Error generating PDF invoice:', error);
+    throw new Error('Failed to generate PDF invoice');
   } finally {
     if (browser) {
       await browser.close();
@@ -452,14 +424,14 @@ export async function savePOSReceiptPDF(data: POSReceiptData, outputPath?: strin
   try {
     const pdfBuffer = await generatePOSReceiptPDF(data);
     
-    // Create receipts directory if it doesn't exist
-    const receiptsDir = path.join(process.cwd(), 'public', 'receipts');
+    // Create invoices directory if it doesn't exist
+    const receiptsDir = path.join(process.cwd(), 'public', 'invoices');
     if (!fs.existsSync(receiptsDir)) {
       fs.mkdirSync(receiptsDir, { recursive: true });
     }
     
     // Generate filename if not provided
-    const filename = outputPath || `receipt-${data.receiptNumber}-${Date.now()}.pdf`;
+    const filename = outputPath || `invoice-${data.receiptNumber}-${Date.now()}.pdf`;
     const fullPath = path.join(receiptsDir, filename);
     
     // Write PDF to file
@@ -467,7 +439,7 @@ export async function savePOSReceiptPDF(data: POSReceiptData, outputPath?: strin
     
     return fullPath;
   } catch (error) {
-    console.error('Error saving PDF receipt:', error);
-    throw new Error('Failed to save PDF receipt');
+    console.error('Error saving PDF invoice:', error);
+    throw new Error('Failed to save PDF invoice');
   }
 }

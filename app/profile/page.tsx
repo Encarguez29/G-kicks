@@ -41,6 +41,7 @@ interface Address {
   state: string
   postal_code: string
   country: string
+  barangay?: string
   shipping_region?: string
   is_default: boolean
 }
@@ -74,6 +75,8 @@ export default function ProfilePage() {
   const [currentAddressId, setCurrentAddressId] = useState<string | null>(null)
   // Orders count state
   const [ordersCount, setOrdersCount] = useState<number>(0)
+  // Add profile data loaded state to track when data is ready
+  const [profileDataLoaded, setProfileDataLoaded] = useState(false)
 
   const [profileData, setProfileData] = useState<ProfileData>({
     first_name: "",
@@ -96,6 +99,7 @@ export default function ProfilePage() {
     street_address: "",
     city: "",
     state_province: "",
+    barangay: "",
     zip_code: "",
     country: "Philippines",
     shipping_region: "Luzon",
@@ -105,36 +109,27 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user && !authLoading && tokenReady) {
       console.log('👤 User changed and token ready, fetching profile data for:', user.email)
-      // Only clear profile data if we don't have any existing data
-      if (!profileData.first_name && !profileData.last_name) {
-        setProfileData({
-          first_name: user.firstName || "",
-          last_name: user.lastName || "",
-          phone: "",
-          birthdate: "",
-          gender: "",
-          bio: "",
-          avatar_url: user.avatar || "",
-          preferences: {
-            newsletter: true,
-            sms_notifications: false,
-            email_notifications: true,
-            preferred_language: "en",
-            currency: "PHP",
-          },
-        })
-      }
       fetchProfileData()
     }
   }, [user, authLoading, tokenReady])
 
-  // Also refetch when component mounts or user data updates (but not during auth loading)
+  // Additional effect to ensure data is loaded on component mount
   useEffect(() => {
-    if (user && !authLoading && tokenReady && profileData.first_name === '' && profileData.last_name === '') {
-      console.log('🔄 Profile data is empty and token ready, refetching...')
+    if (user && tokenReady && !profileDataLoaded) {
+      console.log('🔄 Component mounted or data not loaded, ensuring profile data is fetched')
       fetchProfileData()
     }
-  }, [user, authLoading, tokenReady, profileData.first_name, profileData.last_name])
+  }, [user, tokenReady, profileDataLoaded])
+
+  // Effect to log when profile data changes for debugging
+  useEffect(() => {
+    if (profileDataLoaded) {
+      console.log('📊 Profile data loaded and updated:', {
+        preferences: profileData.preferences,
+        dataLoaded: profileDataLoaded
+      })
+    }
+  }, [profileData, profileDataLoaded])
 
   // Fetch total orders count
   useEffect(() => {
@@ -174,6 +169,8 @@ export default function ProfilePage() {
   const fetchProfileData = async () => {
     if (!user) return
 
+    setProfileDataLoaded(false) // Reset loaded state when fetching
+    
     try {
       const token = localStorage.getItem('auth_token')
       const response = await fetch(`/api/profiles?t=${Date.now()}&cache=${Math.random()}`, {
@@ -198,6 +195,23 @@ export default function ProfilePage() {
         })
         console.log('📋 Profile data received:', profile)
         
+        // Parse preferences if it's a string
+        let parsedPreferences = profile.preferences;
+        if (typeof profile.preferences === 'string') {
+          try {
+            parsedPreferences = JSON.parse(profile.preferences);
+          } catch (e) {
+            console.warn('Failed to parse preferences JSON:', e);
+            parsedPreferences = {
+              newsletter: true,
+              sms_notifications: false,
+              email_notifications: true,
+              preferred_language: "en",
+              currency: "PHP",
+            };
+          }
+        }
+        
         const newProfileData = {
           first_name: profile.first_name || "",
           last_name: profile.last_name || "",
@@ -206,7 +220,7 @@ export default function ProfilePage() {
           gender: profile.gender || "",
           bio: profile.bio || "",
           avatar_url: profile.avatar_url || "",
-          preferences: profile.preferences || {
+          preferences: parsedPreferences || {
             newsletter: true,
             sms_notifications: false,
             email_notifications: true,
@@ -216,7 +230,8 @@ export default function ProfilePage() {
         };
         console.log('🔄 Frontend: Setting new profile data:', newProfileData);
         setProfileData(newProfileData);
-        console.log('✅ Frontend: Profile data state updated');
+        setProfileDataLoaded(true); // Mark as loaded
+        console.log('✅ Frontend: Profile data state updated and marked as loaded');
       } else {
         console.error('Failed to fetch profile:', response.status, response.statusText)
         // Create default profile data
@@ -237,6 +252,7 @@ export default function ProfilePage() {
           },
         }
         setProfileData(defaultData)
+        setProfileDataLoaded(true); // Mark as loaded even with defaults
       }
     } catch (error) {
       console.error('Error fetching profile data:', error)
@@ -258,6 +274,7 @@ export default function ProfilePage() {
         },
       }
       setProfileData(defaultData)
+      setProfileDataLoaded(true); // Mark as loaded even with defaults
     }
   }
 
@@ -266,18 +283,6 @@ export default function ProfilePage() {
       fetchAddresses()
     }
   }, [user, tokenReady])
-
-  // Additional effect to handle cases where user is already authenticated on mount
-  useEffect(() => {
-    // Small delay to ensure auth context has initialized
-    const timer = setTimeout(() => {
-      if (user && tokenReady && addresses.length === 0) {
-        fetchAddresses()
-      }
-    }, 100)
-    
-    return () => clearTimeout(timer)
-  }, []) // Run only once on mount
 
   const fetchAddresses = async (preserveFormData = false) => {
     if (!user) return
@@ -314,6 +319,7 @@ export default function ProfilePage() {
           state_province: firstAddress.state || "",
           zip_code: firstAddress.postal_code || "",
           country: firstAddress.country || "Philippines",
+          barangay: firstAddress.barangay || "",
           shipping_region: firstAddress.shipping_region || "Luzon",
           is_default: firstAddress.is_default || false,
         })
@@ -519,6 +525,7 @@ export default function ProfilePage() {
         state: addressData.state_province.trim(),
         postal_code: addressData.zip_code.trim(),
         country: addressData.country,
+        barangay: addressData.barangay.trim(),
         shipping_region: addressData.shipping_region,
         first_name: profileData.first_name.trim() || user?.firstName || 'User',
         last_name: profileData.last_name.trim() || user?.lastName || 'Name',
@@ -610,15 +617,7 @@ export default function ProfilePage() {
       const wasCurrentAddress = currentAddressId === addressId
       if (wasCurrentAddress) {
         setCurrentAddressId(null)
-        setAddressData({
-          street_address: "",
-          city: "",
-          state_province: "",
-          zip_code: "",
-          country: "Philippines",
-          shipping_region: "Luzon",
-          is_default: false,
-        })
+ 
       }
 
       await fetchAddresses(!wasCurrentAddress)
@@ -637,6 +636,7 @@ export default function ProfilePage() {
       street_address: "",
       city: "",
       state_province: "",
+      barangay: "",
       zip_code: "",
       country: "Philippines",
       shipping_region: "Luzon",
@@ -652,6 +652,7 @@ export default function ProfilePage() {
       state_province: address.state || "",
       zip_code: address.postal_code || "",
       country: address.country || "Philippines",
+      barangay: address.barangay || "",
       shipping_region: address.shipping_region || "Luzon",
       is_default: address.is_default || false,
     })
@@ -946,6 +947,7 @@ export default function ProfilePage() {
                       <LocationSelector
                         selectedProvince={addressData.state_province}
                         selectedCity={addressData.city}
+                        selectedBarangay={addressData.barangay}
                         onProvinceChange={(province) => {
                           // Determine shipping region based on province
                           const getShippingRegionByProvince = (province: string): 'Luzon' | 'Visayas/Mindanao' => {
@@ -968,6 +970,7 @@ export default function ProfilePage() {
                           }))
                         }}
                         onCityChange={(city) => setAddressData((prev) => ({ ...prev, city }))}
+                        onBarangayChange={(barangay) => setAddressData((prev) => ({ ...prev, barangay }))}
                         required
                       />
 
@@ -1057,7 +1060,7 @@ export default function ProfilePage() {
                                   )}
                                 </div>
                                 <p className="text-foreground text-sm">
-                                  {address.city}, {address.state} {address.postal_code}
+                                  {address.barangay && `${address.barangay}, `}{address.city}, {address.state} {address.postal_code}
                                 </p>
                                 <p className="text-muted-foreground text-sm">{address.country}</p>
                               </div>
@@ -1086,7 +1089,7 @@ export default function ProfilePage() {
                 </Card>
               </TabsContent>
 
-              <TabsContent value="preferences">
+              <TabsContent value="preferences" key={`preferences-${profileDataLoaded}-${JSON.stringify(profileData.preferences)}`}>
                 <Card className="bg-card border-border">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-primary">
@@ -1098,8 +1101,16 @@ export default function ProfilePage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-foreground">Notifications</h3>
+                    {!profileDataLoaded && (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                        <span className="text-muted-foreground">Loading preferences...</span>
+                      </div>
+                    )}
+                    {profileDataLoaded && (
+                      <>
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold text-foreground">Notifications</h3>
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <div>
@@ -1151,18 +1162,20 @@ export default function ProfilePage() {
 
 
 
-                    <Button
-                      onClick={(e) => {
-                        console.log('🔘 PROFILE: Save Preferences button clicked!', e);
-                        console.log('🔘 PROFILE: loading state:', loading);
-                        console.log('🔘 PROFILE: Current profileData:', profileData);
-                        handleSaveProfile();
-                      }}
-                      disabled={loading}
-                    >
-                      {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                      Save Preferences
-                    </Button>
+                        <Button
+                          onClick={(e) => {
+                            console.log('🔘 PROFILE: Save Preferences button clicked!', e);
+                            console.log('🔘 PROFILE: loading state:', loading);
+                            console.log('🔘 PROFILE: Current profileData:', profileData);
+                            handleSaveProfile();
+                          }}
+                          disabled={loading || !profileDataLoaded}
+                        >
+                          {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                          Save Preferences
+                        </Button>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>

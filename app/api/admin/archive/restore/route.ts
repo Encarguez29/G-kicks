@@ -141,14 +141,34 @@ export async function POST(request: NextRequest) {
         break
 
       case 'user':
-        // Restore user by setting is_active = 1
-        query = `
-          UPDATE users 
-          SET is_active = 1, updated_at = NOW() 
-          WHERE id = ? AND is_active = 0
-        `
-        params = [id]
-        console.log('👤 Restore API: User restore query prepared')
+        // First check if this is an admin user or regular user
+        console.log('👤 Restore API: Checking if user is admin or regular user...')
+        
+        // Check admin_users table first
+        const [adminUserCheck] = await connection.execute(
+          'SELECT id FROM admin_users WHERE id = ? AND is_active = 0',
+          [id]
+        ) as any[]
+        
+        if (adminUserCheck.length > 0) {
+          // This is an admin user - restore from admin_users table
+          query = `
+            UPDATE admin_users 
+            SET is_active = 1, updated_at = NOW() 
+            WHERE id = ? AND is_active = 0
+          `
+          params = [id]
+          console.log('👤 Restore API: Admin user restore query prepared')
+        } else {
+          // This is a regular user - restore from users table
+          query = `
+            UPDATE users 
+            SET is_active = 1, updated_at = NOW() 
+            WHERE id = ? AND is_active = 0
+          `
+          params = [id]
+          console.log('👤 Restore API: Regular user restore query prepared')
+        }
         break
 
       case 'carousel':

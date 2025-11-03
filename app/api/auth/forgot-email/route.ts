@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/database/mysql'
-import { sendEmailRecoveryNotification } from '@/lib/email-service'
+import { sendEmailRecoveryNotification, sendEmailNotFoundNotification } from '@/lib/email-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,36 +24,42 @@ export async function POST(request: NextRequest) {
 
     // Check if user exists with this email
     const userArray = await executeQuery(
-      'SELECT id, email, first_name, phone FROM users WHERE email = ?',
+      'SELECT id, email, first_name FROM users WHERE email = ?',
       [email]
     ) as any[]
 
-    // Always return success to prevent email enumeration attacks
-    if (userArray.length === 0) {
-      return NextResponse.json(
-        { message: 'If an account with that email exists, recovery information has been sent.' },
-        { status: 200 }
-      )
-    }
+    let emailSent = false
 
-    const user = userArray[0]
-
-    // For now, we'll send the email address via email (since SMS requires additional setup)
-    // In a real implementation, you would integrate with an SMS service like Twilio
-    try {
-      const emailSent = await sendEmailRecoveryNotification(user.email, user.first_name || 'User', user.email)
-      
-      if (!emailSent) {
-        console.error('Failed to send email recovery notification')
-        // Continue anyway - don't fail the request if email fails
-      } else {
-        console.log(`Email recovery notification sent to: ${user.email}`)
+    if (userArray.length > 0) {
+      // User exists - send recovery email with their email address
+      const user = userArray[0]
+      try {
+        emailSent = await sendEmailRecoveryNotification(user.email, user.first_name || 'User', user.email)
+        
+        if (emailSent) {
+          console.log(`Email recovery notification sent to: ${user.email}`)
+        } else {
+          console.error('Failed to send email recovery notification')
+        }
+      } catch (emailError) {
+        console.error('Failed to send email recovery notification:', emailError)
       }
-    } catch (emailError) {
-      console.error('Failed to send email recovery notification:', emailError)
-      // Continue without failing the request
+    } else {
+      // User doesn't exist - send "not found" email
+      try {
+        emailSent = await sendEmailNotFoundNotification(email)
+        
+        if (emailSent) {
+          console.log(`Email not found notification sent to: ${email}`)
+        } else {
+          console.error('Failed to send email not found notification')
+        }
+      } catch (emailError) {
+        console.error('Failed to send email not found notification:', emailError)
+      }
     }
 
+    // Always return the same success message to prevent email enumeration
     return NextResponse.json(
       { message: 'If an account with that email exists, recovery information has been sent to your email address.' },
       { status: 200 }

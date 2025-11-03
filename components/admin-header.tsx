@@ -55,6 +55,7 @@ export function AdminHeader() {
     { href: "/admin", icon: Home, label: "Dashboard", active: pathname === "/admin", permission: "dashboard" },
     { href: "/admin/inventory", icon: Package, label: "Products", active: pathname === "/admin/inventory", permission: "inventory" },
     { href: "/admin/orders", icon: ShoppingCart, label: "Orders", active: pathname === "/admin/orders", permission: "orders" },
+    { href: "/admin/support", icon: MessageCircle, label: "Support", active: pathname === "/admin/support", permission: "support" },
     { href: "/admin/carousel", icon: Settings, label: "Carousel", active: pathname === "/admin/carousel", permission: "carousel" },
     { href: "/admin/analytics", icon: BarChart3, label: "Analytics", active: pathname === "/admin/analytics", permission: "analytics" },
     { href: "/admin/pos", icon: Calculator, label: "POS", active: pathname === "/admin/pos", permission: "pos" },
@@ -66,8 +67,8 @@ export function AdminHeader() {
   const navigationItems = allNavigationItems.filter(item => {
     // Admin has access to all items
     if (isFullAdmin) return true
-    // Staff has access to orders, POS, and archive
-    if (isStaffUser) return item.permission === 'orders' || item.permission === 'pos' || item.permission === 'archive'
+    // Staff has access to orders, POS, support, and archive
+    if (isStaffUser) return item.permission === 'orders' || item.permission === 'pos' || item.permission === 'support' || item.permission === 'archive'
     return false
   })
 

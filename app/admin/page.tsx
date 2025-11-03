@@ -35,6 +35,8 @@ interface DashboardStats {
   totalOrders: number
   pendingOrders: number
   completedOrders: number
+  cancelledOrders: number
+  returnedOrders: number
   totalRevenue: number
   totalUsers: number
   recentOrders: any[]
@@ -182,7 +184,7 @@ export default function AdminDashboard() {
             <CardContent>
               <div className="text-2xl font-bold text-primary">{stats.totalOrders}</div>
               <p className="text-xs text-muted-foreground">
-                {stats.pendingOrders} pending, {stats.completedOrders} completed
+                {stats.pendingOrders} ongoing, {stats.completedOrders} delivered, {stats.returnedOrders} returned, {stats.cancelledOrders} cancelled
               </p>
             </CardContent>
           </Card>

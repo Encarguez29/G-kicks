@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/database/mysql'
-import { sendVerificationEmail, generateVerificationToken } from '@/lib/email/email-service'
+import { sendVerificationEmailWithCode, generateVerificationToken, generateVerificationCode } from '@/lib/email/email-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,18 +43,19 @@ export async function POST(request: NextRequest) {
       [user.id]
     )
 
-    // Generate new verification token
+    // Generate new verification token and code
     const verificationToken = generateVerificationToken()
+    const verificationCode = generateVerificationCode()
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
 
-    // Store new verification token
+    // Store new verification token and code
     await executeQuery(
-      'INSERT INTO email_verification_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
-      [user.id, verificationToken, expiresAt]
+      'INSERT INTO email_verification_tokens (user_id, token, verification_code, expires_at) VALUES (?, ?, ?, ?)',
+      [user.id, verificationToken, verificationCode, expiresAt]
     )
 
-    // Send verification email
-    const emailSent = await sendVerificationEmail(email, user.first_name, verificationToken)
+    // Send verification email with code
+    const emailSent = await sendVerificationEmailWithCode(email, user.first_name, verificationCode)
 
     if (!emailSent) {
       console.error('Failed to send verification email to:', email)

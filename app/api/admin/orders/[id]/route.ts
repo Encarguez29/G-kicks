@@ -13,7 +13,7 @@ interface Order extends RowDataPacket {
   customer_phone: string
   shipping_address: string
   total_amount: number
-  status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+  status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
   created_at: string
   updated_at: string
 }
@@ -55,7 +55,7 @@ export async function PATCH(
     const { status } = await request.json()
     const { id: orderId } = await params
 
-    if (!status || !['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'].includes(status)) {
+    if (!status || !['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'].includes(status)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     }
 
@@ -67,6 +67,109 @@ export async function PATCH(
 
     if (result.affectedRows === 0) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    }
+
+    // Handle status-specific actions and notifications
+    try {
+      // Get order details for notification
+      const [orderDetails] = await db.execute(
+        'SELECT o.*, u.email as user_email FROM orders o LEFT JOIN users u ON o.user_id = u.id WHERE o.id = ?',
+        [orderId]
+      ) as any[]
+
+      if (orderDetails.length > 0) {
+        const orderDetail = orderDetails[0]
+        let notificationTitle = ''
+        let notificationMessage = ''
+        let notificationType = status
+
+        // Set notification content based on status
+        switch (status) {
+          case 'pending':
+            notificationTitle = 'Order Received'
+            notificationMessage = `Your order #${orderDetail.order_number} has been received and is pending confirmation.`
+            break
+          case 'confirmed':
+            notificationTitle = 'Order Confirmed'
+            notificationMessage = `Your order #${orderDetail.order_number} has been confirmed and will be processed soon.`
+            break
+          case 'processing':
+            notificationTitle = 'Order Processing'
+            notificationMessage = `Your order #${orderDetail.order_number} is now being processed and prepared for shipment.`
+            break
+          case 'shipped':
+            notificationTitle = 'Order Shipped'
+            notificationMessage = `Your order #${orderDetail.order_number} has been shipped and is on its way to you!`
+            // Update shipped_at timestamp for shipped orders
+            await db.execute(
+              'UPDATE orders SET shipped_at = NOW() WHERE id = ?',
+              [orderId]
+            )
+            break
+          case 'delivered':
+            notificationTitle = 'Order Delivered'
+            notificationMessage = `Your order #${orderDetail.order_number} has been delivered successfully. Thank you for shopping with us!`
+            // Update delivered_at timestamp for delivered orders
+            await db.execute(
+              'UPDATE orders SET delivered_at = NOW() WHERE id = ?',
+              [orderId]
+            )
+            break
+          case 'cancelled':
+            notificationTitle = 'Order Cancelled'
+            notificationMessage = `Your order #${orderDetail.order_number} has been cancelled. If you have any questions, please contact our support team.`
+            break
+          case 'returned':
+            notificationTitle = 'Order Return Confirmed'
+            notificationMessage = `Your return for order #${orderDetail.order_number} has been confirmed and processed. Thank you for your understanding.`
+            // Update returned_at timestamp for returned orders
+            await db.execute(
+              'UPDATE orders SET returned_at = NOW() WHERE id = ?',
+              [orderId]
+            )
+            break
+          default:
+            // Skip notification for unknown status
+            break
+        }
+
+        // Create notification for customer (only if we have valid notification content)
+        if (notificationTitle && notificationMessage) {
+          await db.execute(
+            `INSERT INTO delivery_notifications (order_id, user_id, notification_type, title, message, email_sent) 
+             VALUES (?, ?, ?, ?, ?, FALSE)`,
+            [
+              orderId,
+              orderDetail.user_id,
+              notificationType,
+              notificationTitle,
+              notificationMessage
+            ]
+          )
+
+          // Send email notification to customer
+          try {
+            const { sendOrderStatusUpdateEmail } = await import('@/lib/email-service')
+            const success = await sendOrderStatusUpdateEmail(
+              orderDetail.user_email || orderDetail.customer_email,
+              orderDetail.order_number,
+              status,
+              status === 'shipped' ? orderDetail.tracking_number : undefined
+            )
+            if (success) {
+              await db.execute(
+                'UPDATE delivery_notifications SET email_sent = TRUE, email_sent_at = NOW() WHERE order_id = ? AND notification_type = ?',
+                [orderId, notificationType]
+              )
+            }
+          } catch (emailError) {
+            console.error(`Failed to send ${status} notification email:`, emailError)
+          }
+        }
+      }
+    } catch (statusError) {
+      console.error('Error handling status update notification:', statusError)
+      // Don't fail the order update if notification fails
     }
 
     // If order is marked as delivered, automatically mark notification as viewed

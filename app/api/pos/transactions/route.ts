@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { executeQuery } from '@/lib/database/mysql'
+import { executeQuery, executeNonPreparedQuery } from '@/lib/database/mysql'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import pool from '@/lib/database/mysql'
 import jwt from 'jsonwebtoken'
+import { generateNextOrderId } from '@/lib/order-utils'
 
 interface POSTransactionItem {
   productId: string
@@ -210,36 +210,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Payment method required' }, { status: 400 })
     }
 
-    // Get admin user ID from database using email
-    let adminUserId = 1 // Default fallback
+    // Get user ID from database using email
+    let userId = 1 // Default fallback
     try {
       const userResult = await executeQuery(
-        'SELECT id FROM admin_users WHERE email = ?',
+        'SELECT id FROM users WHERE email = ?',
         [userEmail]
       )
       if (Array.isArray(userResult) && userResult.length > 0) {
-        adminUserId = (userResult[0] as any).id
+        userId = (userResult[0] as any).id
       }
     } catch (error) {
-      console.error('Error fetching admin user ID:', error)
+      console.error('Error fetching user ID:', error)
     }
 
-    // Generate transaction ID
-    const transactionId = `POS-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    // Generate unified order ID for both POS transaction and main order
+    const orderNumber = await generateNextOrderId()
+    const transactionId = `POS-${orderNumber}`
     const receiptNumber = `RCP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     
     // Calculate subtotal
     const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
 
-    // Compute discount, tax, and total (server-side safety)
+    // Compute discount and total (server-side safety) - No VAT
     const discountAmountInput = typeof body?.discount === 'number' ? body.discount : 0
     const discountAmount = Math.max(0, Math.min(discountAmountInput, subtotal))
-    const taxBase = Math.max(0, subtotal - discountAmount)
-    const taxAmount = Number((taxBase * 0.12).toFixed(2))
-    const totalAmountComputed = Number((taxBase + taxAmount).toFixed(2))
+    const taxAmount = 0 // No VAT
+    const totalAmountComputed = Number((subtotal - discountAmount).toFixed(2))
 
     // Start transaction
-    await pool.query('START TRANSACTION')
+    await executeNonPreparedQuery('START TRANSACTION')
 
     try {
       // Insert transaction
@@ -248,19 +248,21 @@ export async function POST(request: NextRequest) {
           transaction_id, user_id, customer_name,
           subtotal, total_amount, payment_method,
           cash_received, change_given, receipt_number, transaction_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
 
+      const currentDate = new Date().toISOString().split('T')[0] // Format: YYYY-MM-DD
       const transactionResult = await executeQuery(insertTransactionQuery, [
         transactionId,
-        adminUserId,
+        userId,
         customerName || null,
         subtotal,
         totalAmountComputed,
         paymentMethodNormalized,
         cashReceived || null,
         changeGiven || null,
-        receiptNumber
+        receiptNumber,
+        currentDate
       ])
 
       const dbTransactionId = (transactionResult as any).insertId
@@ -367,7 +369,7 @@ export async function POST(request: NextRequest) {
           sale_date, admin_user_id, total_transactions, total_items_sold,
           gross_sales, net_sales, cash_sales, card_sales, digital_wallet_sales
         ) VALUES (
-          CURDATE(), ?, 1, ?, ?, ?, 
+          ?, ?, 1, ?, ?, ?, 
           CASE WHEN ? = 'CASH' THEN ? ELSE 0 END,
           CASE WHEN ? = 'CARD' THEN ? ELSE 0 END,
           CASE WHEN ? IN ('GCASH', 'MAYA') THEN ? ELSE 0 END
@@ -380,23 +382,82 @@ export async function POST(request: NextRequest) {
           cash_sales = cash_sales + CASE WHEN ? = 'CASH' THEN ? ELSE 0 END,
           card_sales = card_sales + CASE WHEN ? = 'CARD' THEN ? ELSE 0 END,
           digital_wallet_sales = digital_wallet_sales + CASE WHEN ? IN ('GCASH', 'MAYA') THEN ? ELSE 0 END,
-          updated_at = CURRENT_TIMESTAMP
+          updated_at = ?
       `
 
       const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)
+      const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ') // Format: YYYY-MM-DD HH:MM:SS
 
       await executeQuery(updateDailySalesQuery, [
-        adminUserId, totalItems, subtotal, totalAmountComputed,
+        currentDate, // sale_date
+        userId, totalItems, subtotal, totalAmountComputed,
         paymentMethodNormalized, totalAmountComputed,
         paymentMethodNormalized, totalAmountComputed,
         paymentMethodNormalized, totalAmountComputed,
         totalItems, subtotal, totalAmountComputed,
         paymentMethodNormalized, totalAmountComputed,
         paymentMethodNormalized, totalAmountComputed,
-        paymentMethodNormalized, totalAmountComputed
+        paymentMethodNormalized, totalAmountComputed,
+        currentTimestamp // updated_at
       ])
 
-      await pool.query('COMMIT')
+      // Create corresponding entry in main orders table for synchronization
+      const insertOrderQuery = `
+        INSERT INTO orders (
+          user_id, order_number, customer_email, order_source,
+          subtotal, tax_amount, total_amount, payment_method,
+          payment_status, status, notes, created_at, delivered_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'paid', 'delivered', ?, ?, ?)
+      `
+
+      const orderNotes = JSON.stringify({
+        source: 'POS',
+        pos_transaction_id: transactionId,
+        receipt_number: receiptNumber,
+        admin_user_id: userId,
+        payment_reference: paymentReference || null
+      })
+
+      // Use POS system user ID (47) for orders table foreign key constraint
+      const POS_SYSTEM_USER_ID = 47;
+      
+      const orderResult = await executeQuery(insertOrderQuery, [
+        POS_SYSTEM_USER_ID, // Use POS system user ID for orders table foreign key
+        orderNumber,
+        customerName || 'POS Customer',
+        'walk-in', // This is a walk-in order from the POS system
+        subtotal,
+        0, // tax_amount - no VAT for POS transactions
+        totalAmountComputed,
+        paymentMethodNormalized,
+        orderNotes,
+        currentTimestamp, // created_at
+        currentTimestamp  // delivered_at
+      ])
+
+      const orderId = (orderResult as any).insertId
+
+      // Create order items for the main orders table
+      for (const item of items) {
+        const insertOrderItemQuery = `
+          INSERT INTO order_items (
+            order_id, product_id, product_name,
+            size, color, quantity, price
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `
+
+        await executeQuery(insertOrderItemQuery, [
+          orderId,
+          item.productId,
+          item.name,
+          item.size,
+          item.color,
+          item.quantity,
+          item.price
+        ])
+      }
+
+      await executeNonPreparedQuery('COMMIT')
 
       return NextResponse.json({
         success: true,
@@ -406,7 +467,7 @@ export async function POST(request: NextRequest) {
       })
 
     } catch (error) {
-      await pool.query('ROLLBACK')
+      await executeNonPreparedQuery('ROLLBACK')
       throw error
     }
 

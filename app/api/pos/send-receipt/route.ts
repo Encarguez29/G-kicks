@@ -160,11 +160,12 @@ export async function POST(request: NextRequest) {
 
     // Update transaction with email sent status (optional)
     try {
+      const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ')
       await executeQuery(`
         UPDATE pos_transactions 
-        SET customer_email = ?, email_sent_at = NOW() 
+        SET customer_email = ?, email_sent_at = ? 
         WHERE transaction_id = ?
-      `, [customerEmail, transactionId]);
+      `, [customerEmail, currentTimestamp, transactionId]);
     } catch (updateError) {
       console.error('Failed to update transaction with email status:', updateError);
       // Don't fail the request if this update fails

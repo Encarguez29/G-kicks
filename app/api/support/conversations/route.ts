@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
     const conversations = await executeQuery(`
       SELECT 
         c.id,
+        c.user_id,
         c.user_email,
         c.user_name,
         c.subject,
@@ -37,13 +38,17 @@ export async function GET(request: NextRequest) {
         c.updated_at,
         c.last_message_at,
         (SELECT COUNT(*) FROM support_messages m WHERE m.conversation_id = c.id AND m.is_read = FALSE AND m.sender_type = 'customer') as unread_count,
-        (SELECT message_content FROM support_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message,
-        (SELECT sender_type FROM support_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_sender_type
+        (SELECT message_content FROM support_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as latest_message,
+        (SELECT sender_type FROM support_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_sender_type,
+        (SELECT created_at FROM support_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as latest_message_time
       FROM support_conversations c
       ORDER BY c.last_message_at DESC
     `) as any[]
 
-    return NextResponse.json({ conversations })
+    return NextResponse.json({ 
+      success: true,
+      conversations 
+    })
 
   } catch (error) {
     console.error('Error fetching conversations:', error)
@@ -67,9 +72,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Create conversation
+    const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const conversationResult = await executeQuery(
-      'INSERT INTO support_conversations (user_id, user_email, user_name, subject, status, last_message_at) VALUES (?, ?, ?, ?, ?, NOW())',
-      [user_id || null, user_email, user_name || '', subject || 'Support Request', 'open']
+      'INSERT INTO support_conversations (user_id, user_email, user_name, subject, status, last_message_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [user_id || null, user_email, user_name || '', subject || 'Support Request', 'open', currentTimestamp]
     ) as any
 
     const conversationId = conversationResult.insertId
@@ -127,10 +133,11 @@ export async function PUT(request: NextRequest) {
 
     const allowedStatuses = new Set(['open', 'in_progress', 'resolved', 'closed'])
     const newStatus = typeof status === 'string' && allowedStatuses.has(status) ? status : 'closed'
+    const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
     await executeQuery(
-      'UPDATE support_conversations SET status = ?, updated_at = NOW() WHERE id = ?',
-      [newStatus, conversation_id]
+      'UPDATE support_conversations SET status = ?, updated_at = ? WHERE id = ?',
+      [newStatus, currentTimestamp, conversation_id]
     )
 
     return NextResponse.json({ success: true, status: newStatus })

@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings Persistence Diagnosis</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        .step {
+            margin: 15px 0;
+            padding: 10px;
+            border-left: 4px solid #007bff;
+            background-color: #f8f9fa;
+        }
+        .step-title {
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 5px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-pending { background-color: #6c757d; }
+        .status-running { background-color: #ffc107; }
+        .status-success { background-color: #28a745; }
+        .status-error { background-color: #dc3545; }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .data-display {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Settings Persistence Diagnosis</h1>
+        <p>This tool diagnoses why settings don't persist after page reload/rebuild.</p>
+
+        <!-- Test Controls -->
+        <div class="test-section">
+            <h3>Test Controls</h3>
+            <button onclick="runFullDiagnosis()" id="runBtn">🚀 Run Full Diagnosis</button>
+            <button onclick="clearLogs()">🧹 Clear Logs</button>
+            <button onclick="simulatePageReload()">🔄 Simulate Page Reload</button>
+            <button onclick="testAuthPersistence()">🔐 Test Auth Persistence</button>
+        </div>
+
+        <!-- Test Steps -->
+        <div class="test-section">
+            <h3>Diagnosis Steps</h3>
+            <div id="testSteps">
+                <div class="step" id="step1">
+                    <div class="step-title">
+                        <span class="status-indicator status-pending" id="status1"></span>
+                        Step 1: Check Authentication Status
+                    </div>
+                    <div id="step1-details">Verifying if user is authenticated and token exists</div>
+                </div>
+                <div class="step" id="step2">
+                    <div class="step-title">
+                        <span class="status-indicator status-pending" id="status2"></span>
+                        Step 2: Fetch Current Profile Data
+                    </div>
+                    <div id="step2-details">Retrieving current profile data from server</div>
+                </div>
+                <div class="step" id="step3">
+                    <div class="step-title">
+                        <span class="status-indicator status-pending" id="status3"></span>
+                        Step 3: Save Test Profile Data
+                    </div>
+                    <div id="step3-details">Saving test profile data with specific preferences</div>
+                </div>
+                <div class="step" id="step4">
+                    <div class="step-title">
+                        <span class="status-indicator status-pending" id="status4"></span>
+                        Step 4: Verify Data Persistence
+                    </div>
+                    <div id="step4-details">Checking if saved data persists after fetch</div>
+                </div>
+                <div class="step" id="step5">
+                    <div class="step-title">
+                        <span class="status-indicator status-pending" id="status5"></span>
+                        Step 5: Test Cache Behavior
+                    </div>
+                    <div id="step5-details">Testing if caching affects data retrieval</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Grid -->
+        <div class="grid">
+            <div class="test-section">
+                <h3>📊 Current Profile Data</h3>
+                <div id="currentProfileData" class="data-display">No data loaded yet...</div>
+            </div>
+            <div class="test-section">
+                <h3>💾 Saved Profile Data</h3>
+                <div id="savedProfileData" class="data-display">No data saved yet...</div>
+            </div>
+        </div>
+
+        <!-- Detailed Logs -->
+        <div class="test-section">
+            <h3>📋 Detailed Logs</h3>
+            <div id="detailedLogs" class="log">Logs will appear here...</div>
+        </div>
+
+        <!-- Diagnosis Results -->
+        <div class="test-section">
+            <h3>🎯 Diagnosis Results</h3>
+            <div id="diagnosisResults" class="log">Diagnosis results will appear here...</div>
+        </div>
+    </div>
+
+    <script>
+        let testLog = '';
+        let currentProfileData = null;
+        let savedProfileData = null;
+
+        function log(message, level = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = level === 'error' ? '❌' : level === 'success' ? '✅' : level === 'warning' ? '⚠️' : 'ℹ️';
+            const logMessage = `[${timestamp}] ${prefix} ${message}`;
+            testLog += logMessage + '\n';
+            document.getElementById('detailedLogs').textContent = testLog;
+            console.log(logMessage);
+        }
+
+        function clearLogs() {
+            testLog = '';
+            document.getElementById('detailedLogs').textContent = 'Logs cleared...';
+            document.getElementById('diagnosisResults').textContent = 'Diagnosis results will appear here...';
+        }
+
+        function updateStepStatus(stepNum, status, details = '') {
+            const statusElement = document.getElementById(`status${stepNum}`);
+            const detailsElement = document.getElementById(`step${stepNum}-details`);
+            
+            statusElement.className = `status-indicator status-${status}`;
+            if (details) {
+                detailsElement.textContent = details;
+            }
+        }
+
+        function updateDataDisplay(elementId, data) {
+            const element = document.getElementById(elementId);
+            element.textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function checkAuthentication() {
+            updateStepStatus(1, 'running', 'Checking authentication...');
+            log('🔍 Step 1: Checking authentication status');
+            
+            try {
+                const token = localStorage.getItem('auth_token');
+                
+                if (!token) {
+                    updateStepStatus(1, 'error', 'No auth token found in localStorage');
+                    log('No auth token found in localStorage', 'error');
+                    return false;
+                }
+
+                log(`Auth token found: ${token.substring(0, 20)}...`);
+
+                const response = await fetch('/api/auth/me', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (response.ok) {
+                    const userData = await response.json();
+                    updateStepStatus(1, 'success', `Authenticated as: ${userData.user.email}`);
+                    log(`Successfully authenticated as: ${userData.user.email}`, 'success');
+                    return true;
+                } else {
+                    updateStepStatus(1, 'error', 'Authentication verification failed');
+                    log('Authentication verification failed', 'error');
+                    return false;
+                }
+            } catch (error) {
+                updateStepStatus(1, 'error', `Auth check error: ${error.message}`);
+                log(`Auth check error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function fetchCurrentProfile() {
+            updateStepStatus(2, 'running', 'Fetching current profile...');
+            log('📥 Step 2: Fetching current profile data');
+            
+            try {
+                const token = localStorage.getItem('auth_token');
+                
+                const response = await fetch(`/api/profiles?t=${Date.now()}&cache=${Math.random()}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    },
+                    cache: 'no-store'
+                });
+
+                if (response.ok) {
+                    currentProfileData = await response.json();
+                    updateStepStatus(2, 'success', 'Profile data fetched successfully');
+                    updateDataDisplay('currentProfileData', currentProfileData);
+                    log('Profile data fetched successfully', 'success');
+                    log(`Profile data: ${JSON.stringify(currentProfileData, null, 2)}`);
+                    return currentProfileData;
+                } else {
+                    const errorData = await response.json();
+                    updateStepStatus(2, 'error', `Failed to fetch profile: ${errorData.error}`);
+                    log(`Failed to fetch profile: ${errorData.error}`, 'error');
+                    return null;
+                }
+            } catch (error) {
+                updateStepStatus(2, 'error', `Error fetching profile: ${error.message}`);
+                log(`Error fetching profile: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        async function saveTestProfile() {
+            updateStepStatus(3, 'running', 'Saving test profile data...');
+            log('💾 Step 3: Saving test profile data');
+            
+            try {
+                const token = localStorage.getItem('auth_token');
+                
+                const testProfileData = {
+                    first_name: currentProfileData?.first_name || 'Test',
+                    last_name: currentProfileData?.last_name || 'User',
+                    phone: currentProfileData?.phone || '09123456789',
+                    birthdate: currentProfileData?.birthdate || '',
+                    gender: currentProfileData?.gender || '',
+                    bio: currentProfileData?.bio || 'Test bio for persistence diagnosis',
+                    avatar_url: currentProfileData?.avatar_url || '',
+                    preferences: {
+                        newsletter: false, // Changed from default
+                        sms_notifications: true, // Changed from default
+                        email_notifications: false, // Changed from default
+                        preferred_language: 'es', // Changed from default
+                        currency: 'EUR', // Changed from default
+                        test_timestamp: Date.now() // Add timestamp for verification
+                    }
+                };
+
+                log(`Saving test profile data: ${JSON.stringify(testProfileData, null, 2)}`);
+
+                const response = await fetch('/api/profiles', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(testProfileData)
+                });
+
+                if (response.ok) {
+                    savedProfileData = testProfileData;
+                    updateStepStatus(3, 'success', 'Test profile data saved successfully');
+                    updateDataDisplay('savedProfileData', savedProfileData);
+                    log('Test profile data saved successfully', 'success');
+                    return savedProfileData;
+                } else {
+                    const errorData = await response.json();
+                    updateStepStatus(3, 'error', `Failed to save profile: ${errorData.error}`);
+                    log(`Failed to save profile: ${errorData.error}`, 'error');
+                    return null;
+                }
+            } catch (error) {
+                updateStepStatus(3, 'error', `Error saving profile: ${error.message}`);
+                log(`Error saving profile: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        async function verifyDataPersistence() {
+            updateStepStatus(4, 'running', 'Verifying data persistence...');
+            log('🔍 Step 4: Verifying data persistence');
+            
+            try {
+                // Wait a moment to ensure data is saved
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const token = localStorage.getItem('auth_token');
+                
+                const response = await fetch(`/api/profiles?verify=${Date.now()}&cache=${Math.random()}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    },
+                    cache: 'no-store'
+                });
+
+                if (response.ok) {
+                    const verifiedData = await response.json();
+                    log(`Verified data: ${JSON.stringify(verifiedData, null, 2)}`);
+                    
+                    // Check if our test data persisted
+                    const testTimestamp = savedProfileData?.preferences?.test_timestamp;
+                    const verifiedTimestamp = verifiedData?.preferences?.test_timestamp;
+                    
+                    if (testTimestamp && verifiedTimestamp && testTimestamp === verifiedTimestamp) {
+                        updateStepStatus(4, 'success', 'Data persistence verified - test timestamp matches');
+                        log('✅ Data persistence verified - test timestamp matches', 'success');
+                        return true;
+                    } else {
+                        updateStepStatus(4, 'warning', 'Data persistence issue - test timestamp mismatch');
+                        log('⚠️ Data persistence issue - test timestamp mismatch', 'warning');
+                        log(`Expected timestamp: ${testTimestamp}, Got: ${verifiedTimestamp}`, 'warning');
+                        return false;
+                    }
+                } else {
+                    updateStepStatus(4, 'error', 'Failed to verify data persistence');
+                    log('Failed to verify data persistence', 'error');
+                    return false;
+                }
+            } catch (error) {
+                updateStepStatus(4, 'error', `Error verifying persistence: ${error.message}`);
+                log(`Error verifying persistence: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function testCacheBehavior() {
+            updateStepStatus(5, 'running', 'Testing cache behavior...');
+            log('🧪 Step 5: Testing cache behavior');
+            
+            try {
+                const token = localStorage.getItem('auth_token');
+                
+                // Test 1: Request with cache
+                log('Testing request WITH cache...');
+                const cachedResponse = await fetch('/api/profiles', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                // Test 2: Request without cache
+                log('Testing request WITHOUT cache...');
+                const noCacheResponse = await fetch(`/api/profiles?nocache=${Date.now()}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    },
+                    cache: 'no-store'
+                });
+                
+                if (cachedResponse.ok && noCacheResponse.ok) {
+                    const cachedData = await cachedResponse.json();
+                    const noCacheData = await noCacheResponse.json();
+                    
+                    const cachedTimestamp = cachedData?.preferences?.test_timestamp;
+                    const noCacheTimestamp = noCacheData?.preferences?.test_timestamp;
+                    
+                    if (cachedTimestamp === noCacheTimestamp) {
+                        updateStepStatus(5, 'success', 'Cache behavior is consistent');
+                        log('✅ Cache behavior is consistent', 'success');
+                    } else {
+                        updateStepStatus(5, 'warning', 'Cache behavior inconsistency detected');
+                        log('⚠️ Cache behavior inconsistency detected', 'warning');
+                        log(`Cached timestamp: ${cachedTimestamp}, No-cache timestamp: ${noCacheTimestamp}`, 'warning');
+                    }
+                } else {
+                    updateStepStatus(5, 'error', 'Failed to test cache behavior');
+                    log('Failed to test cache behavior', 'error');
+                }
+            } catch (error) {
+                updateStepStatus(5, 'error', `Error testing cache: ${error.message}`);
+                log(`Error testing cache: ${error.message}`, 'error');
+            }
+        }
+
+        async function runFullDiagnosis() {
+            const runBtn = document.getElementById('runBtn');
+            runBtn.disabled = true;
+            runBtn.textContent = '🔄 Running Diagnosis...';
+            
+            clearLogs();
+            log('🚀 Starting full persistence diagnosis');
+            
+            try {
+                // Reset all step statuses
+                for (let i = 1; i <= 5; i++) {
+                    updateStepStatus(i, 'pending');
+                }
+                
+                const authOk = await checkAuthentication();
+                if (!authOk) {
+                    log('❌ Authentication failed, stopping diagnosis', 'error');
+                    return;
+                }
+                
+                const profileData = await fetchCurrentProfile();
+                if (!profileData) {
+                    log('❌ Failed to fetch profile, stopping diagnosis', 'error');
+                    return;
+                }
+                
+                const saveResult = await saveTestProfile();
+                if (!saveResult) {
+                    log('❌ Failed to save test profile, stopping diagnosis', 'error');
+                    return;
+                }
+                
+                const persistenceOk = await verifyDataPersistence();
+                await testCacheBehavior();
+                
+                // Generate diagnosis report
+                generateDiagnosisReport(persistenceOk);
+                
+            } catch (error) {
+                log(`❌ Diagnosis failed: ${error.message}`, 'error');
+            } finally {
+                runBtn.disabled = false;
+                runBtn.textContent = '🚀 Run Full Diagnosis';
+            }
+        }
+
+        function generateDiagnosisReport(persistenceOk) {
+            const results = document.getElementById('diagnosisResults');
+            let report = '🎯 DIAGNOSIS REPORT\n';
+            report += '==================\n\n';
+            
+            if (persistenceOk) {
+                report += '✅ RESULT: Settings persistence is WORKING correctly\n';
+                report += '   - Profile data saves successfully\n';
+                report += '   - Data persists after fetch operations\n';
+                report += '   - Test timestamp verification passed\n\n';
+                report += '💡 If you\'re experiencing persistence issues in the main app:\n';
+                report += '   1. Check if the profile page is properly calling fetchProfileData on mount\n';
+                report += '   2. Verify that the auth context is correctly initialized\n';
+                report += '   3. Check for any caching issues in the browser\n';
+                report += '   4. Ensure the profile form is properly bound to the fetched data\n';
+            } else {
+                report += '❌ RESULT: Settings persistence has ISSUES\n';
+                report += '   - Profile data may not be saving correctly\n';
+                report += '   - Data may not persist after fetch operations\n';
+                report += '   - Test timestamp verification failed\n\n';
+                report += '🔧 RECOMMENDED FIXES:\n';
+                report += '   1. Check database connection and profile table structure\n';
+                report += '   2. Verify API endpoint implementation\n';
+                report += '   3. Check for transaction rollback issues\n';
+                report += '   4. Verify JSON serialization of preferences\n';
+            }
+            
+            report += '\n📊 DATA SUMMARY:\n';
+            report += `   - Current profile loaded: ${currentProfileData ? 'Yes' : 'No'}\n`;
+            report += `   - Test profile saved: ${savedProfileData ? 'Yes' : 'No'}\n`;
+            report += `   - Persistence verified: ${persistenceOk ? 'Yes' : 'No'}\n`;
+            
+            results.textContent = report;
+            log('📋 Diagnosis report generated', 'success');
+        }
+
+        async function simulatePageReload() {
+            log('🔄 Simulating page reload behavior...');
+            
+            // Clear current data
+            currentProfileData = null;
+            savedProfileData = null;
+            updateDataDisplay('currentProfileData', 'Simulating reload...');
+            updateDataDisplay('savedProfileData', 'Simulating reload...');
+            
+            // Wait a moment
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Re-fetch data as if page was reloaded
+            await fetchCurrentProfile();
+            
+            log('✅ Page reload simulation completed');
+        }
+
+        async function testAuthPersistence() {
+            log('🔐 Testing authentication persistence...');
+            
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                log(`✅ Auth token persists in localStorage: ${token.substring(0, 20)}...`);
+                
+                // Test if token is still valid
+                const isValid = await checkAuthentication();
+                if (isValid) {
+                    log('✅ Auth token is still valid', 'success');
+                } else {
+                    log('❌ Auth token is invalid or expired', 'error');
+                }
+            } else {
+                log('❌ No auth token found in localStorage', 'error');
+            }
+        }
+
+        // Initialize on page load
+        window.onload = function() {
+            log('🚀 Settings Persistence Diagnosis Tool initialized');
+            log('Click "Run Full Diagnosis" to start the comprehensive test');
+        };
+    </script>
+</body>
+</html>

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Archive, RotateCcw, Trash2, Search, Filter, Package, ShoppingCart, Users, ChevronDown, ChevronRight, Image, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -20,6 +21,12 @@ interface ArchivedItem {
   details: any
 }
 
+interface User {
+  id: string
+  email: string
+  role: string
+}
+
 export default function ArchivePage() {
   const [archivedItems, setArchivedItems] = useState<ArchivedItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -28,10 +35,39 @@ export default function ArchivePage() {
   const [restoring, setRestoring] = useState<number | null>(null)
   const [deleting, setDeleting] = useState<number | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['product', 'order', 'user', 'carousel', 'message']))
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
 
   useEffect(() => {
+    fetchCurrentUser()
     fetchArchivedItems()
   }, [])
+
+  const fetchCurrentUser = async () => {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
+      if (!token) return
+
+      // Decode JWT token to get user info
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      setCurrentUser({
+        id: payload.userId,
+        email: payload.email,
+        role: payload.role
+      })
+    } catch (error) {
+      console.error('Error fetching current user:', error)
+    }
+  }
+
+  const isStaffUser = () => {
+    return currentUser?.role === 'staff' || currentUser?.email === 'gkicksstaff@gmail.com'
+  }
+
+  const hasAdminAccess = () => {
+    return currentUser?.role === 'admin' || currentUser?.email === 'gkcksdmn@gmail.com'
+  }
 
   const fetchArchivedItems = async () => {
     try {
@@ -100,37 +136,150 @@ export default function ArchivePage() {
     }
 
     try {
+      console.log('🗑️ Frontend: Starting delete for ID:', id, 'Type:', type)
       setDeleting(id)
+      
+      // Get JWT token from localStorage for admin authentication
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
+      console.log('🔑 Frontend: Token found:', !!token)
+      
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      
+      console.log('📡 Frontend: Making delete request to /api/admin/archive/delete')
       const response = await fetch('/api/admin/archive/delete', {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ id, type }),
       })
 
+      console.log('📡 Frontend: Response status:', response.status)
+      console.log('📡 Frontend: Response ok:', response.ok)
+
       if (response.ok) {
+        const result = await response.json()
+        console.log('✅ Frontend: Delete successful:', result)
         toast.success('Item permanently deleted')
         fetchArchivedItems()
+        // Remove from selected items if it was selected
+        const itemKey = `${type}-${id}`
+        if (selectedItems.has(itemKey)) {
+          const newSelected = new Set(selectedItems)
+          newSelected.delete(itemKey)
+          setSelectedItems(newSelected)
+        }
       } else {
         const error = await response.json()
+        console.log('❌ Frontend: Delete failed:', error)
         toast.error(error.message || 'Failed to delete item')
       }
     } catch (error) {
-      console.error('Error deleting item:', error)
+      console.error('❌ Frontend: Error deleting item:', error)
       toast.error('Error deleting item')
     } finally {
       setDeleting(null)
     }
   }
 
+  const handleBulkDelete = async () => {
+    if (selectedItems.size === 0) {
+      toast.error('Please select items to delete')
+      return
+    }
+
+    if (!confirm(`Are you sure you want to permanently delete ${selectedItems.size} selected item(s)? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      setBulkDeleting(true)
+      
+      // Get JWT token from localStorage for admin authentication
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
+      
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      // Convert selected items to array of {id, type} objects
+      const itemsToDelete = Array.from(selectedItems).map(itemKey => {
+        const [type, id] = itemKey.split('-')
+        return { id: parseInt(id), type }
+      })
+
+      const response = await fetch('/api/admin/archive/bulk-delete', {
+        method: 'DELETE',
+        headers,
+        body: JSON.stringify({ items: itemsToDelete }),
+      })
+
+      if (response.ok) {
+        toast.success(`${selectedItems.size} item(s) permanently deleted`)
+        setSelectedItems(new Set())
+        fetchArchivedItems()
+      } else {
+        const error = await response.json()
+        toast.error(error.message || 'Failed to delete selected items')
+      }
+    } catch (error) {
+      console.error('Error bulk deleting items:', error)
+      toast.error('Error deleting selected items')
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
+  const handleSelectItem = (itemKey: string, checked: boolean) => {
+    const newSelected = new Set(selectedItems)
+    if (checked) {
+      newSelected.add(itemKey)
+    } else {
+      newSelected.delete(itemKey)
+    }
+    setSelectedItems(newSelected)
+  }
+
+  const handleSelectAll = (category: string, checked: boolean) => {
+    const newSelected = new Set(selectedItems)
+    const categoryItems = groupedItems[category as keyof typeof groupedItems]
+    
+    categoryItems.forEach(item => {
+      // Skip users from bulk selection
+      if (item.type === 'user') return
+      
+      const itemKey = `${item.type}-${item.id}`
+      if (checked) {
+        newSelected.add(itemKey)
+      } else {
+        newSelected.delete(itemKey)
+      }
+    })
+    
+    setSelectedItems(newSelected)
+  }
+
   const filteredItems = archivedItems.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesType = filterType === 'all' || item.type === filterType
+    
+    // Hide archived users from staff users (they don't have user management access)
+    if (isStaffUser() && item.type === 'user') {
+      return false
+    }
+    
     return matchesSearch && matchesType
   })
 
-  // Group items by category
+  // Group items by category (users will be empty for staff)
   const groupedItems = {
     product: filteredItems.filter(item => item.type === 'product'),
     order: filteredItems.filter(item => item.type === 'order'),
@@ -205,7 +354,7 @@ export default function ArchivePage() {
             <Archive className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{archivedItems.length}</div>
+            <div className="text-2xl font-bold">{filteredItems.length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -215,7 +364,7 @@ export default function ArchivePage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {archivedItems.filter(item => item.type === 'product').length}
+              {groupedItems.product.length}
             </div>
           </CardContent>
         </Card>
@@ -226,21 +375,24 @@ export default function ArchivePage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {archivedItems.filter(item => item.type === 'order').length}
+              {groupedItems.order.length}
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Archived Users</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {archivedItems.filter(item => item.type === 'user').length}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Only show archived users card for admin users */}
+        {hasAdminAccess() && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Archived Users</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {groupedItems.user.length}
+              </div>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Archived Carousel</CardTitle>
@@ -248,7 +400,7 @@ export default function ArchivePage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {archivedItems.filter(item => item.type === 'carousel').length}
+              {groupedItems.carousel.length}
             </div>
           </CardContent>
         </Card>
@@ -259,7 +411,7 @@ export default function ArchivePage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {archivedItems.filter(item => item.type === 'message').length}
+              {groupedItems.message.length}
             </div>
           </CardContent>
         </Card>
@@ -268,10 +420,34 @@ export default function ArchivePage() {
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Archived Items</CardTitle>
-          <CardDescription>
-            View and manage all archived items in your system
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Archived Items</CardTitle>
+              <CardDescription>
+                View and manage all archived items in your system
+              </CardDescription>
+            </div>
+            {selectedItems.size > 0 && (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-muted-foreground">
+                  {selectedItems.size} item(s) selected
+                </span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleting}
+                >
+                  {bulkDeleting ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                  ) : (
+                    <Trash2 className="h-4 w-4 mr-2" />
+                  )}
+                  Delete Selected
+                </Button>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -295,7 +471,8 @@ export default function ArchivePage() {
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="product">Products</SelectItem>
                 <SelectItem value="order">Orders</SelectItem>
-                <SelectItem value="user">Users</SelectItem>
+                {/* Only show Users filter option for admin users */}
+                {hasAdminAccess() && <SelectItem value="user">Users</SelectItem>}
                 <SelectItem value="carousel">Carousel</SelectItem>
                 <SelectItem value="message">Messages</SelectItem>
               </SelectContent>
@@ -322,34 +499,70 @@ export default function ArchivePage() {
               {Object.entries(groupedItems).map(([category, items]) => {
                 if (items.length === 0) return null
                 
+                // Hide user category for staff users
+                if (isStaffUser() && category === 'user') return null
+                
                 const isExpanded = expandedCategories.has(category)
                 const categoryName = category.charAt(0).toUpperCase() + category.slice(1) + 's'
+                const categorySelectedCount = items.filter(item => selectedItems.has(`${item.type}-${item.id}`)).length
+                const allCategorySelected = categorySelectedCount === items.length && items.length > 0
+                const someCategorySelected = categorySelectedCount > 0 && categorySelectedCount < items.length
                 
                 return (
                   <div key={category} className="border rounded-lg">
-                    <button
+                    <div
                       onClick={() => toggleCategory(category)}
-                      className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors rounded-t-lg"
+                      className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors rounded-t-lg cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={allCategorySelected}
+                          disabled={category === 'user'}
+                          ref={(el) => {
+                            if (el) {
+                              const checkboxElement = el as any;
+                              checkboxElement.indeterminate = someCategorySelected;
+                            }
+                          }}
+                          onCheckedChange={(checked) => handleSelectAll(category, checked as boolean)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
                         {getTypeIcon(category)}
                         <h3 className="text-lg font-medium text-gray-900">{categoryName}</h3>
                         <span className="bg-gray-200 text-gray-700 px-2 py-1 rounded-full text-sm">
                           {items.length}
                         </span>
+                        {categorySelectedCount > 0 && (
+                          <span className="bg-blue-200 text-blue-700 px-2 py-1 rounded-full text-sm">
+                            {categorySelectedCount} selected
+                          </span>
+                        )}
                       </div>
                       {isExpanded ? (
                         <ChevronDown className="h-5 w-5 text-gray-500" />
                       ) : (
                         <ChevronRight className="h-5 w-5 text-gray-500" />
                       )}
-                    </button>
+                    </div>
                     
                     {isExpanded && (
                       <div className="border-t">
                         <Table>
                           <TableHeader>
                             <TableRow>
+                              <TableHead className="w-12">
+                                <Checkbox
+                                  checked={allCategorySelected}
+                                  disabled={category === 'user'}
+                                  ref={(el) => {
+                                    if (el) {
+                                      const checkboxElement = el as any;
+                                      checkboxElement.indeterminate = someCategorySelected;
+                                    }
+                                  }}
+                                  onCheckedChange={(checked) => handleSelectAll(category, checked as boolean)}
+                                />
+                              </TableHead>
                               <TableHead>Name</TableHead>
                               <TableHead>Archived Date</TableHead>
                               <TableHead>Archived By</TableHead>
@@ -358,38 +571,65 @@ export default function ArchivePage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {items.map((item) => (
-                              <TableRow key={`${item.type}-${item.id}`}>
-                                <TableCell>
-                                  <div className="flex items-center gap-3">
-                                    {getTypeIcon(item.type)}
-                                    <div className="font-medium">{item.name}</div>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  {new Date(item.archived_at).toLocaleDateString()}
-                                </TableCell>
-                                <TableCell>{item.archived_by || 'System'}</TableCell>
-                                <TableCell>{item.reason || 'No reason provided'}</TableCell>
-                                <TableCell className="text-right">
-                                  <div className="flex items-center justify-end space-x-2">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleRestore(item.id, item.type)}
-                                      disabled={restoring === item.id}
-                                    >
-                                      {restoring === item.id ? (
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
-                                      ) : (
-                                        <RotateCcw className="h-4 w-4" />
+                            {items.map((item) => {
+                              const itemKey = `${item.type}-${item.id}`
+                              const isSelected = selectedItems.has(itemKey)
+                              
+                              return (
+                                <TableRow key={itemKey}>
+                                  <TableCell>
+                                    <Checkbox
+                                      checked={isSelected}
+                                      disabled={item.type === 'user'}
+                                      onCheckedChange={(checked) => handleSelectItem(itemKey, checked as boolean)}
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-3">
+                                      {getTypeIcon(item.type)}
+                                      <div className="font-medium">{item.name}</div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    {new Date(item.archived_at).toLocaleDateString()}
+                                  </TableCell>
+                                  <TableCell>{item.archived_by || 'System'}</TableCell>
+                                  <TableCell>{item.reason || 'No reason provided'}</TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="flex items-center justify-end space-x-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleRestore(item.id, item.type)}
+                                        disabled={restoring === item.id}
+                                      >
+                                        {restoring === item.id ? (
+                                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                                        ) : (
+                                          <RotateCcw className="h-4 w-4" />
+                                        )}
+                                        <span className="ml-1">Restore</span>
+                                      </Button>
+                                      {item.type !== 'user' && (
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          onClick={() => handlePermanentDelete(item.id, item.type)}
+                                          disabled={deleting === item.id}
+                                        >
+                                          {deleting === item.id ? (
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                                          ) : (
+                                            <Trash2 className="h-4 w-4" />
+                                          )}
+                                          <span className="ml-1">Delete</span>
+                                        </Button>
                                       )}
-                                      <span className="ml-1">Restore</span>
-                                    </Button>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })}
                           </TableBody>
                         </Table>
                       </div>

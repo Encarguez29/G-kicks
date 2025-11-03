@@ -122,12 +122,13 @@ async function createTestOrders() {
       
       for (const order of testOrders) {
         await connection.execute(`
-          INSERT INTO orders (order_number, customer_name, customer_email, total_amount, status, payment_status, shipping_address)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO orders (order_number, customer_name, customer_email, order_source, total_amount, status, payment_status, shipping_address)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           order.order_number,
           order.customer_name,
           order.customer_email,
+          'online', // Test orders are considered online orders
           order.total_amount,
           order.status,
           order.payment_status,

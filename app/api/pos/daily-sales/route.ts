@@ -56,7 +56,11 @@ export async function GET(request: NextRequest) {
       params.push(startDate, endDate)
     } else {
       // Default to last 30 days
-      whereClause += ' AND ds.sale_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)'
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10)
+      whereClause += ' AND ds.sale_date >= ?'
+      params.push(thirtyDaysAgoStr)
     }
 
     const salesQuery = `
@@ -97,7 +101,11 @@ export async function GET(request: NextRequest) {
       taxWhereClause += ' AND t.transaction_date BETWEEN ? AND ?'
       taxParams.push(startDate, endDate)
     } else {
-      taxWhereClause += ' AND t.transaction_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)'
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10)
+      taxWhereClause += ' AND t.transaction_date >= ?'
+      taxParams.push(thirtyDaysAgoStr)
     }
 
     const taxSummaryQuery = `
@@ -196,10 +204,11 @@ export async function POST(request: NextRequest) {
         cash_sales = VALUES(cash_sales),
         card_sales = VALUES(card_sales),
         digital_wallet_sales = VALUES(digital_wallet_sales),
-        updated_at = CURRENT_TIMESTAMP
+        updated_at = ?
     `
 
-    const params = [date, date]
+    const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ')
+    const params = [date, date, currentTimestamp]
 
     await executeQuery(recalculateQuery, params)
 

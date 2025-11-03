@@ -18,6 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Smartphone, User, CheckCircle, Receipt, Upload, X, Info } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import ImagePreview from "@/components/image-preview"
+import { useFileUpload } from "@/hooks/use-file-upload"
 import { LocationSelector } from "@/components/ui/location-selector"
 import { getRecommendedBagSize, getAllBagSpecifications, getBagSpecificationBySize } from "@/lib/bag-specifications"
 import Image from "next/image"
@@ -44,6 +46,7 @@ export default function CartPage() {
     street: string
     city: string
     province: string
+    barangay: string
     zipCode: string
     country: string
   }>({
@@ -52,15 +55,54 @@ export default function CartPage() {
     street: "",
     city: "",
     province: "",
+    barangay: "",
     zipCode: "",
     country: "",
   })
 
   const [customerEmail, setCustomerEmail] = useState("")
   const [paymentMethod, setPaymentMethod] = useState("")
-  const [paymentScreenshot, setPaymentScreenshot] = useState<string | null>(null)
-  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null)
   const [termsAccepted, setTermsAccepted] = useState(false)
+  
+  // File upload hook for payment screenshots
+  const {
+    file: screenshotFile,
+    previewUrl: screenshotPreview,
+    uploadedUrl: paymentScreenshot,
+    isUploading: isUploadingScreenshot,
+    error: screenshotError,
+    handleFileSelect: handleScreenshotSelect,
+    handleUpload: uploadScreenshot,
+    clearFile: clearScreenshot,
+    reset: resetScreenshot
+  } = useFileUpload({
+    maxSize: 10 * 1024 * 1024, // 10MB
+    allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+    onUpload: async (file: File) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      
+      const response = await fetch('/api/upload-payment-screenshot', {
+        method: 'POST',
+        body: formData
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to upload screenshot')
+      }
+      
+      const { url } = await response.json()
+      return url
+    },
+    onError: (error) => {
+      toast({
+        title: "Upload Error",
+        description: error,
+        variant: "destructive"
+      })
+    }
+  })
   // Add payment reference state
   const [paymentReference, setPaymentReference] = useState<string>("")
   const [paymentReferenceError, setPaymentReferenceError] = useState<string>("")
@@ -216,6 +258,7 @@ export default function CartPage() {
           street: addressData?.address_line_1 || "",
           city: addressData?.city || "",
           province: addressData?.state || "",
+          barangay: addressData?.barangay || "",
           zipCode: addressData?.postal_code || "",
           country: addressData?.country || "",
         }
@@ -286,72 +329,13 @@ export default function CartPage() {
       setShowQRDialog(true)
     }
     // Reset screenshot when changing payment method
-    setPaymentScreenshot(null)
-    setScreenshotPreview(null)
+    resetScreenshot()
     // Reset payment reference when changing method
     setPaymentReference("")
     setPaymentReferenceError("")
   }
 
-  const handleScreenshotUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "Invalid File Type",
-          description: "Please upload an image file.",
-          variant: "destructive"
-        })
-        return
-      }
-      
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        toast({
-          title: "File Too Large",
-          description: "Please upload an image smaller than 10MB.",
-          variant: "destructive"
-        })
-        return
-      }
-      
-      try {
-        // Upload file to server
-        const formData = new FormData()
-        formData.append('file', file)
-        
-        const uploadResponse = await fetch('/api/upload-payment-screenshot', {
-          method: 'POST',
-          body: formData
-        })
-        
-        if (!uploadResponse.ok) {
-          const errorData = await uploadResponse.json()
-          throw new Error(errorData.error || 'Failed to upload screenshot')
-        }
-        
-        const { url } = await uploadResponse.json()
-        
-        // Store the uploaded file URL instead of the file object
-        setPaymentScreenshot(url)
-        setScreenshotPreview(url)
-        
-        toast({
-          title: "Screenshot Uploaded",
-          description: "Payment screenshot uploaded successfully.",
-        })
-        
-      } catch (error) {
-        console.error('Screenshot upload error:', error)
-        toast({
-          title: "Upload Failed",
-          description: error instanceof Error ? error.message : "Failed to upload screenshot.",
-          variant: "destructive"
-        })
-      }
-    }
-  }
+
 
   // Handle payment reference input change
   const handlePaymentReferenceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -390,6 +374,16 @@ export default function CartPage() {
       toast({
         title: "Missing Information",
         description: "Please fill in all shipping information.",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    // Validate barangay field
+    if (!shippingInfo.barangay || shippingInfo.barangay.trim() === "") {
+      toast({
+        title: "Barangay Required",
+        description: "Please input your barangay first before placing your order.",
         variant: "destructive",
       })
       return
@@ -563,12 +557,11 @@ export default function CartPage() {
       // Calculate totals using selected items if any
       const effectiveItems = selectedItems.size > 0 ? items.filter(it => selectedItems.has(getItemKey(it))) : items
       const subtotal = effectiveItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0)
-      const vat = subtotal * 0.12 // 12% VAT in Philippines
       
       // Use calculated shipping from state
       const shipping = calculatedShipping
       
-      const total = subtotal + vat + shipping
+      const total = subtotal + shipping
 
       // Calculate total quantity of effective items
       const totalQuantity = effectiveItems.reduce((sum, item) => sum + (item.quantity || 0), 0)
@@ -680,12 +673,11 @@ export default function CartPage() {
   // Calculate totals for display using selected items if any
   const displayItems = selectedItems.size > 0 ? items.filter(it => selectedItems.has(getItemKey(it))) : items
   const subtotal = displayItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0)
-  const vat = subtotal * 0.12 // 12% VAT in Philippines
   
   // Use calculated shipping from state
   const shipping = calculatedShipping
   
-  const total = subtotal + vat + shipping
+  const total = subtotal + shipping
 
   // Calculate total quantity of items for display
   const totalQuantity = displayItems.reduce((sum, item) => sum + (item.quantity || 0), 0)
@@ -857,10 +849,6 @@ export default function CartPage() {
                 <div className="flex justify-between text-sm sm:text-base">
                   <span className="text-gray-600 dark:text-gray-400">Subtotal:</span>
                   <span className="text-gray-900 dark:text-white">₱{subtotal.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-sm sm:text-base">
-                  <span className="text-gray-600 dark:text-gray-400">VAT (12%):</span>
-                  <span className="text-gray-900 dark:text-white">₱{vat.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm sm:text-base">
                   <span className="text-gray-600 dark:text-gray-400">Shipping (J&T):</span>
@@ -1094,6 +1082,7 @@ export default function CartPage() {
                     <LocationSelector
                       selectedProvince={shippingInfo.province}
                       selectedCity={shippingInfo.city}
+                      selectedBarangay={shippingInfo.barangay}
                       onProvinceChange={(province) => {
                         setShippingInfo({ ...shippingInfo, province })
                         // Automatically update shipping region based on province
@@ -1101,6 +1090,7 @@ export default function CartPage() {
                         setShippingLocation(region)
                       }}
                       onCityChange={(city) => setShippingInfo({ ...shippingInfo, city })}
+                      onBarangayChange={(barangay) => setShippingInfo({ ...shippingInfo, barangay })}
                       disabled={true}
                     />
                     <div>
@@ -1187,7 +1177,13 @@ export default function CartPage() {
                             id="paymentScreenshot"
                             type="file"
                             accept="image/*"
-                            onChange={handleScreenshotUpload}
+                            onChange={(e) => {
+                              handleScreenshotSelect(e);
+                              // Auto-upload after selection
+                              if (e.target.files?.[0]) {
+                                setTimeout(() => uploadScreenshot(), 100);
+                              }
+                            }}
                             className="hidden"
                           />
                           <label
@@ -1199,18 +1195,27 @@ export default function CartPage() {
                               <p className="mb-1 lg:mb-2 text-xs lg:text-sm text-gray-300">
                                 <span className="font-semibold">Click to upload</span> screenshot
                               </p>
+                              {isUploadingScreenshot && (
+                                <p className="text-xs text-blue-500">Uploading...</p>
+                              )}
                             </div>
                           </label>
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           Please upload a screenshot of your {paymentMethod} payment confirmation
                         </p>
-                        {screenshotPreview && (
+                        {screenshotError && (
+                          <p className="text-xs text-red-600 dark:text-red-400">{screenshotError}</p>
+                        )}
+                        {(screenshotPreview || paymentScreenshot) && (
                           <div className="mt-2">
-                            <img
-                              src={screenshotPreview}
+                            <ImagePreview
+                              file={screenshotFile}
+                              uploadedUrl={paymentScreenshot}
                               alt="Payment screenshot preview"
-                              className="max-w-full h-32 object-contain border border-gray-200 dark:border-gray-600 rounded"
+                              className="border border-gray-200 dark:border-gray-600"
+                              width={300}
+                              height={128}
                             />
                           </div>
                         )}
@@ -1326,7 +1331,13 @@ export default function CartPage() {
                       id="qrPaymentScreenshot"
                       type="file"
                       accept="image/*"
-                      onChange={handleScreenshotUpload}
+                      onChange={(e) => {
+                        handleScreenshotSelect(e);
+                        // Auto-upload after selection
+                        if (e.target.files?.[0]) {
+                          setTimeout(() => uploadScreenshot(), 100);
+                        }
+                      }}
                       className="hidden"
                     />
                     <label
@@ -1339,15 +1350,24 @@ export default function CartPage() {
                           <span className="font-semibold">Click to upload</span> your payment screenshot
                         </p>
                         <p className="text-xs text-gray-400">PNG, JPG or JPEG (MAX. 10MB)</p>
+                        {isUploadingScreenshot && (
+                          <p className="text-xs text-blue-400 mt-1">Uploading...</p>
+                        )}
                       </div>
                     </label>
                   </div>
-                  {screenshotPreview && (
-                    <div className="mt-3">
-                      <img
-                        src={screenshotPreview}
+                  {screenshotError && (
+                    <p className="text-xs text-red-400 mt-2">{screenshotError}</p>
+                  )}
+                  {(screenshotPreview || paymentScreenshot) && (
+                    <div className="mt-3 flex justify-center">
+                      <ImagePreview
+                        file={screenshotFile}
+                        uploadedUrl={paymentScreenshot}
                         alt="Payment screenshot preview"
-                        className="max-w-full h-32 object-contain border border-gray-600 rounded mx-auto"
+                        className="border border-gray-600"
+                        width={300}
+                        height={128}
                       />
                     </div>
                   )}
@@ -1468,6 +1488,8 @@ export default function CartPage() {
                     ))}
                   </div>
                 </div>
+
+
 
                 <div className="text-center text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                   <p>Order confirmation has been sent to {completedOrder.customer_email}</p>

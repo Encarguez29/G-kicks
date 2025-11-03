@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     const newOrdersResult = await executeQuery(
       `SELECT COUNT(*) as count FROM orders o
        LEFT JOIN notification_views nv ON o.id = nv.order_id AND nv.admin_user_id = ?
-       WHERE o.status IN ('pending', 'confirmed', 'processing')
+       WHERE o.status IN ('pending', 'processing')
        AND nv.order_id IS NULL`,
       [adminUserId]
     ) as RowDataPacket[];
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
          o.created_at
        FROM orders o
        LEFT JOIN notification_views nv ON o.id = nv.order_id AND nv.admin_user_id = ?
-       WHERE o.status IN ('pending', 'confirmed', 'processing')
+       WHERE o.status IN ('pending', 'processing')
        AND nv.order_id IS NULL
        ORDER BY o.created_at DESC
        LIMIT 10`,

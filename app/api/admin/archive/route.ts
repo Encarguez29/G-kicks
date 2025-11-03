@@ -140,9 +140,32 @@ export async function GET(request: NextRequest) {
           'first_name', first_name,
           'last_name', last_name,
           'phone', phone,
-          'is_admin', is_admin
+          'is_admin', is_admin,
+          'user_type', 'regular'
         ) as details
       FROM users 
+      WHERE is_active = 0
+      ORDER BY updated_at DESC
+    `)
+
+    // Get archived admin users (inactive admin users from admin_users table)
+    const [archivedAdminUsers] = await connection.execute(`
+      SELECT 
+        id,
+        CONCAT(first_name, ' ', last_name, ' (', email, ')') as name,
+        'user' as type,
+        updated_at as archived_at,
+        'System' as archived_by,
+        'Admin user account archived' as reason,
+        JSON_OBJECT(
+          'email', email,
+          'first_name', first_name,
+          'last_name', last_name,
+          'username', username,
+          'role', role,
+          'user_type', 'admin'
+        ) as details
+      FROM admin_users 
       WHERE is_active = 0
       ORDER BY updated_at DESC
     `)
@@ -193,6 +216,7 @@ export async function GET(request: NextRequest) {
       ...(archivedProducts as any[]),
       ...(archivedOrders as any[]),
       ...(archivedUsers as any[]),
+      ...(archivedAdminUsers as any[]),
       ...(archivedCarousels as any[]),
       ...(archivedMessages as any[])
     ]
@@ -211,7 +235,7 @@ export async function GET(request: NextRequest) {
       breakdown: {
         products: (archivedProducts as any[]).length,
         orders: (archivedOrders as any[]).length,
-        users: (archivedUsers as any[]).length,
+        users: (archivedUsers as any[]).length + (archivedAdminUsers as any[]).length,
         carousel: (archivedCarousels as any[]).length,
         messages: (archivedMessages as any[]).length
       }

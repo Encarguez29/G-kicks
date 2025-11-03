@@ -38,6 +38,7 @@ import { useTheme } from "next-themes"
 import { useAuth } from "@/contexts/auth-context"
 import { useCart } from "@/contexts/cart-context"
 import { useWishlist } from "@/contexts/wishlist-context"
+import { CustomerNotifications } from "@/components/customer-notifications"
 
 interface HeaderProps {
   onSearch?: (query: string) => void
@@ -422,6 +423,11 @@ export function Header({ onSearch }: HeaderProps) {
                 </div>
               )}
             </div>
+
+            {/* Customer Notifications - Only show for authenticated users */}
+            {user && !authLoading && (
+              <CustomerNotifications />
+            )}
 
             {/* Cart */}
             <Button variant="ghost" size="sm" asChild className={`relative hover:text-yellow-400 ${iconColorClass} h-8 w-8 p-0 hidden md:flex`}>

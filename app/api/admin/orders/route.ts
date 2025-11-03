@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
       )
     }
     
-    // Fetch orders with available information, excluding archived orders (cancelled and refunded)
+    // Fetch orders with available information, including all orders (cancelled, refunded, etc.)
     const prColumnCheck = await executeQuery(
       "SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='orders' AND COLUMN_NAME='payment_reference'"
     ) as any[]
@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
         o.id,
         o.order_number,
         o.customer_email,
+        o.order_source,
         o.total_amount as total,
         o.status,
         o.payment_status,
@@ -91,7 +92,6 @@ export async function GET(request: NextRequest) {
         o.created_at,
         o.updated_at
       FROM orders o
-      WHERE o.status NOT IN ('cancelled', 'refunded')
       ORDER BY o.created_at DESC
     `) as any[]
 
@@ -211,10 +211,54 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    // Validate status transitions to prevent invalid state changes
+    if (status === 'cancelled') {
+      // Check current order status before allowing cancellation
+      const currentOrder = await executeQuery(
+        'SELECT status, delivered_at FROM orders WHERE id = ?',
+        [orderId]
+      ) as any[]
+
+      if (currentOrder.length === 0) {
+        return NextResponse.json(
+          { error: 'Order not found' },
+          { status: 404 }
+        )
+      }
+
+      const currentStatus = currentOrder[0].status
+      const deliveredAt = currentOrder[0].delivered_at
+
+      // Prevent cancelling delivered orders
+      if (currentStatus === 'delivered' || deliveredAt) {
+        return NextResponse.json(
+          { error: 'Cannot cancel delivered orders. Delivered orders cannot be cancelled.' },
+          { status: 400 }
+        )
+      }
+
+      // Prevent cancelling already cancelled orders
+      if (currentStatus === 'cancelled') {
+        return NextResponse.json(
+          { error: 'Order is already cancelled' },
+          { status: 400 }
+        )
+      }
+
+      // Only allow cancelling pending, confirmed, or processing orders
+      if (!['pending', 'confirmed', 'processing'].includes(currentStatus)) {
+        return NextResponse.json(
+          { error: `Cannot cancel order with status '${currentStatus}'. Only pending, confirmed, or processing orders can be cancelled.` },
+          { status: 400 }
+        )
+      }
+    }
+
     // Update order status
+    const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ')
     await executeQuery(
-      'UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?',
-      [status, orderId]
+      'UPDATE orders SET status = ?, updated_at = ? WHERE id = ?',
+      [status, currentTimestamp, orderId]
     )
 
     console.log(`✅ API: Updated order ${orderId} status to ${status}`)

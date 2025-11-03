@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Notifications - Set Auth Token</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .container { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 10px 0; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        .success { color: green; }
+        .error { color: red; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Notification Testing Tool</h1>
+    
+    <div class="container">
+        <h2>Step 1: Set Authentication Token</h2>
+        <p>Click the button below to set a test authentication token for user ID 27 (who has notifications):</p>
+        <button onclick="setAuthToken()">Set Test Auth Token</button>
+        <div id="tokenStatus"></div>
+    </div>
+
+    <div class="container">
+        <h2>Step 2: Test API Directly</h2>
+        <p>Test the notifications API endpoint:</p>
+        <button onclick="testAPI()">Test Notifications API</button>
+        <div id="apiResult"></div>
+    </div>
+
+    <div class="container">
+        <h2>Step 3: Check Current Page</h2>
+        <p>After setting the token, go back to the main page and check if notifications appear in the bell icon.</p>
+        <button onclick="goToMainPage()">Go to Main Page</button>
+    </div>
+
+    <script>
+        function setAuthToken() {
+            // Create JWT token for user ID 27
+            const payload = {
+                userId: 27,
+                email: 'test@example.com',
+                role: 'customer',
+                iat: Math.floor(Date.now() / 1000)
+            };
+            
+            // This is a simplified token creation - in real app this would be done server-side
+            const header = btoa(JSON.stringify({alg: 'HS256', typ: 'JWT'}));
+            const payloadB64 = btoa(JSON.stringify(payload));
+            
+            // For testing, we'll use a pre-generated token that matches the JWT_SECRET
+            const testToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjI3LCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJyb2xlIjoiY3VzdG9tZXIiLCJpYXQiOjE3NjEyMjMwMzgsImV4cCI6MTc2MTMwOTQzOH0.YcIjUx6TYrsydy0RtI9EsEOqTllRQh-mjCoF7nbtORA';
+            
+            localStorage.setItem('auth_token', testToken);
+            document.getElementById('tokenStatus').innerHTML = '<div class="success">✅ Auth token set successfully!</div>';
+        }
+
+        async function testAPI() {
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                document.getElementById('apiResult').innerHTML = '<div class="error">❌ No auth token found. Please set token first.</div>';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/customer/delivery-notifications', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('apiResult').innerHTML = `
+                        <div class="success">✅ API working! Found ${data.notifications.length} notifications, ${data.unreadCount} unread</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    document.getElementById('apiResult').innerHTML = `<div class="error">❌ API Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('apiResult').innerHTML = `<div class="error">❌ Network Error: ${error.message}</div>`;
+            }
+        }
+
+        function goToMainPage() {
+            window.location.href = '/';
+        }
+
+        // Check if token already exists
+        window.onload = function() {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                document.getElementById('tokenStatus').innerHTML = '<div class="success">✅ Auth token already exists</div>';
+            }
+        }
+    </script>
+</body>
+</html>

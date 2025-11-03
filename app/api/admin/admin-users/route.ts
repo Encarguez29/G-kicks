@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import pool from '@/lib/database/mysql';
+import { sendAccountCreationSuccessEmail } from '@/lib/email/email-service';
 
 // Admin user interface for admin_users table
 interface AdminUser {
@@ -139,6 +140,16 @@ export async function POST(request: NextRequest) {
     );
     const insertResult = result as any;
     
+    // Send account creation success email
+    const emailSent = await sendAccountCreationSuccessEmail(
+      body.email,
+      body.first_name,
+      'admin'
+    );
+    if (!emailSent) {
+      console.warn('⚠️ Failed to send account creation email, but admin user was created successfully');
+    }
+    
     return NextResponse.json({
       success: true,
       data: {
@@ -151,7 +162,8 @@ export async function POST(request: NextRequest) {
         permissions: permissions,
         is_active: true
       },
-      message: 'Admin user created successfully'
+      message: 'Admin user created successfully',
+      emailSent
     });
     
   } catch (error) {

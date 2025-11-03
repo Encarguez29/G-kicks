@@ -54,6 +54,10 @@ export async function PATCH(
       )
     }
 
+    // Get cancellation reason from request body
+    const body = await request.json().catch(() => ({}))
+    const cancellationReason = body.reason || 'Customer requested cancellation'
+
     // First, check if the order exists and belongs to the user
     const orderQuery = `
       SELECT id, user_id, status 
@@ -80,13 +84,31 @@ export async function PATCH(
       )
     }
 
-    // Update order status to cancelled
+    // Check if cancellation is already pending
+    if (order.status === 'pending_cancellation') {
+      return NextResponse.json(
+        { error: 'Cancellation request is already pending admin approval.' },
+        { status: 400 }
+      )
+    }
+
+    // Update order status to pending_cancellation and add cancellation details
+    const orderTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const updateQuery = `
       UPDATE orders 
-      SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP 
+      SET status = 'pending_cancellation', 
+          cancellation_requested_at = ?, 
+          cancellation_reason = ?,
+          updated_at = ? 
       WHERE id = ? AND user_id = ? AND status IN ('pending', 'processing')
     `
-    const updateResult = await executeQuery(updateQuery, [orderIdNum, userIdNum]) as any
+    const updateResult = await executeQuery(updateQuery, [
+      orderTimestamp, 
+      cancellationReason, 
+      orderTimestamp, 
+      orderIdNum, 
+      userIdNum
+    ]) as any
 
     if (updateResult && typeof updateResult.affectedRows === 'number' && updateResult.affectedRows === 0) {
       return NextResponse.json(
@@ -95,14 +117,16 @@ export async function PATCH(
       )
     }
 
-    // Remove duplicate update call
-    // Update already executed above; no second call needed
+    // TODO: Send notification to admins about pending cancellation request
+    // This could be implemented as an email notification or admin dashboard notification
 
     return NextResponse.json(
       { 
-        message: 'Order cancelled successfully',
+        message: 'Cancellation request submitted successfully. An admin will review your request.',
         orderId: orderId,
-        status: 'cancelled'
+        status: 'pending_cancellation',
+        reason: cancellationReason,
+        requestedAt: orderTimestamp
       },
       { status: 200 }
     )

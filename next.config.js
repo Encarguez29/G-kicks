@@ -3,6 +3,16 @@ const path = require('path')
 const nextConfig = {
   output: 'standalone',
   trailingSlash: false,
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: '72.60.211.237',
+        port: '',
+        pathname: '/**',
+      },
+    ],
+  },
   rewrites: async () => {
     return [
       {
@@ -22,11 +32,11 @@ const nextConfig = {
           },
           {
             key: 'Access-Control-Allow-Methods',
-            value: 'GET, HEAD, OPTIONS',
+            value: 'GET, POST, PUT, DELETE, OPTIONS',
           },
           {
             key: 'Access-Control-Allow-Headers',
-            value: 'Content-Type, Range',
+            value: 'Content-Type, Authorization',
           },
           {
             key: 'Cache-Control',
@@ -34,7 +44,16 @@ const nextConfig = {
           },
         ],
       },
-    ]
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; font-src 'self' data:; connect-src 'self' http: https: ws: wss:; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';",
+          },
+        ],
+      },
+    ];
   },
   webpack: (config) => {
     config.resolve = config.resolve || {}

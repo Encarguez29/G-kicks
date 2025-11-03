@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/database/mysql'
+import { applyPricingToProduct } from '@/lib/pricing-utils'
 import jwt from 'jsonwebtoken'
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret'
 
@@ -39,6 +40,9 @@ export async function GET(
 
     console.log('🔍 API: Fetching product by ID from MySQL database...', productId)
     
+    const { searchParams } = new URL(request.url)
+    const raw = searchParams.get('raw') // New parameter to skip pricing calculations
+    
     const results = await executeQuery(
       `SELECT * FROM products WHERE id = ? AND is_active = 1 AND is_deleted = 0`,
       [productId]
@@ -65,7 +69,25 @@ export async function GET(
       gallery_images: product.gallery_images ? JSON.parse(product.gallery_images) : []
     }
 
-    return NextResponse.json(parsedProduct)
+    // Apply pricing calculations only if not requesting raw data
+    if (raw === 'true') {
+      console.log('📊 API: Returning raw product data without pricing calculations')
+      return NextResponse.json(parsedProduct)
+    } else {
+      // Apply pricing calculations to the product
+      const productWithPricing = await applyPricingToProduct({
+        price: parseFloat(parsedProduct.price) || 0,
+        originalPrice: parsedProduct.original_price ? parseFloat(parsedProduct.original_price) : undefined
+      });
+
+      const finalProduct = {
+        ...parsedProduct,
+        price: productWithPricing.price,
+        original_price: productWithPricing.originalPrice
+      };
+
+      return NextResponse.json(finalProduct)
+    }
 
   } catch (error) {
     console.error('❌ API: Error fetching product by ID:', error)
@@ -135,6 +157,7 @@ export async function PUT(
     console.log('🔄 API: Updating product:', productId);
 
     // Update product in MySQL database
+    const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const updateQuery = `
       UPDATE products SET
         name = ?,
@@ -155,7 +178,7 @@ export async function PUT(
         sizes = ?,
         model_3d_url = ?,
         model_3d_filename = ?,
-        updated_at = NOW()
+        updated_at = ?
       WHERE id = ? AND is_deleted = 0
     `;
 
@@ -178,6 +201,7 @@ export async function PUT(
       JSON.stringify(sizes || []),
       model_3d_url || null,
       model_3d_filename || null,
+      currentTimestamp,
       productId
     ];
 
@@ -263,7 +287,9 @@ export async function PATCH(
       );
     }
 
-    updateFields.push('updated_at = NOW()');
+    const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    updateFields.push('updated_at = ?');
+    params.push(currentTimestamp);
     params.push(productId);
 
     const updateQuery = `
@@ -333,15 +359,16 @@ export async function DELETE(
     console.log('🗑️ API: Deleting product:', productId);
 
     // Soft delete the product
+    const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const deleteQuery = `
       UPDATE products SET
         is_deleted = 1,
         is_active = 0,
-        updated_at = NOW()
+        updated_at = ?
       WHERE id = ?
     `;
 
-    const result = await executeQuery(deleteQuery, [productId]);
+    const result = await executeQuery(deleteQuery, [currentTimestamp, productId]);
 
     if ((result as any).affectedRows === 0) {
       return NextResponse.json(

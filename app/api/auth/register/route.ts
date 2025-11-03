@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { executeQuery } from '@/lib/database/mysql'
-import { generateVerificationToken, sendVerificationEmail } from '@/lib/email/email-service'
+import { generateVerificationToken, generateVerificationCode, sendVerificationEmailWithCode, sendAccountCreationSuccessEmail } from '@/lib/email/email-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -55,20 +55,31 @@ export async function POST(request: NextRequest) {
     ) as any
     const userId = insertResult.insertId
 
-    // Generate verification token
+    // Generate verification token and code
     const verificationToken = generateVerificationToken()
+    const verificationCode = generateVerificationCode()
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
 
-    // Store verification token in database
+    // Store verification token and code in database
     await executeQuery(
-      'INSERT INTO email_verification_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
-      [userId, verificationToken, expiresAt]
+      'INSERT INTO email_verification_tokens (user_id, token, verification_code, expires_at) VALUES (?, ?, ?, ?)',
+      [userId, verificationToken, verificationCode, expiresAt]
     )
 
-    // Send verification email
-    const emailSent = await sendVerificationEmail(email, firstName, verificationToken)
+    // Send verification email with code
+    const emailSent = await sendVerificationEmailWithCode(email, firstName, verificationCode)
     if (!emailSent) {
       console.warn('⚠️ Failed to send verification email, but user was created')
+    }
+
+    // Send account creation success email
+    const successEmailSent = await sendAccountCreationSuccessEmail(
+      email,
+      firstName,
+      'user'
+    )
+    if (!successEmailSent) {
+      console.warn('⚠️ Failed to send account creation success email, but user was created')
     }
 
     // Return success response without JWT token (user needs to verify email first)
@@ -83,7 +94,8 @@ export async function POST(request: NextRequest) {
         email_verified: false
       },
       requiresVerification: true,
-      emailSent
+      emailSent,
+      successEmailSent
     })
 
     return response

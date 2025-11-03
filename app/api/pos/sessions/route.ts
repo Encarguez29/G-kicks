@@ -276,7 +276,7 @@ async function closeSession(body: CloseSessionRequest) {
     UPDATE pos_sessions 
     SET 
       status = 'closed',
-      end_time = CURRENT_TIMESTAMP,
+      end_time = ?,
       closing_cash = ?,
       total_sales = ?,
       total_transactions = ?,
@@ -288,7 +288,9 @@ async function closeSession(body: CloseSessionRequest) {
     WHERE session_id = ? AND status = 'active'
   `
 
+  const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ')
   const result = await executeQuery(updateSessionQuery, [
+    currentTimestamp,
     closingCash,
     sessionInfo.total_sales,
     sessionInfo.transaction_count,
@@ -390,16 +392,18 @@ export async function PUT(request: NextRequest) {
           WHEN ? IS NULL THEN notes
           ELSE CONCAT(notes, '\n\n--- ', UPPER(?), ' ---\n', ?)
         END,
-        updated_at = CURRENT_TIMESTAMP
+        updated_at = ?
       WHERE session_id = ? AND status = ?
     `
 
+    const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ')
     const result = await executeQuery(updateQuery, [
       newStatus,
       notes,
       notes,
       action,
       notes,
+      currentTimestamp,
       sessionId,
       currentStatus
     ])

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { executeQuery } from '@/lib/database/mysql'
+import { executeQuery } from '../../../lib/database/mysql'
+import { calculatePrice, getPricingSettings } from '../../../lib/pricing-utils'
 import jwt from 'jsonwebtoken'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret'
@@ -72,17 +73,36 @@ export async function GET(request: NextRequest) {
       [user.id]
     ) as any[]
 
+    // Get BASE_URL for image processing
+    const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || ""
+    
+    // Get pricing settings and apply calculations
+    const pricingSettings = await getPricingSettings()
+    
     // Format cart items to match frontend interface
-    const formattedItems = cartItems.map((item: any) => ({
-      id: item.id.toString(),
-      name: item.name,
-      price: parseFloat(item.price),
-      image: item.image || '/placeholder.svg',
-      size: item.size,
-      quantity: item.quantity,
-      color: item.color,
-      brand: item.brand
-    }))
+    const formattedItems = cartItems.map((item: any) => {
+      console.log('🖼️ Cart API: Raw image data for product', item.id, ':', item.image)
+      
+      // Use the same approach as products API - no BASE_URL processing
+      const imageUrl = item.image || '/placeholder-product.jpg'
+      
+      console.log('🖼️ Cart API: Final image URL for product', item.id, ':', imageUrl)
+      
+      // Apply pricing calculations to get the final price
+      const basePrice = parseFloat(item.price)
+      const finalPrice = calculatePrice(basePrice, pricingSettings)
+      
+      return {
+          id: item.id.toString(),
+          name: item.name,
+          price: finalPrice,
+          image: imageUrl,
+          size: item.size,
+          quantity: item.quantity,
+          color: item.color,
+          brand: item.brand
+        }
+    })
 
     console.log(`✅ API: Successfully returned ${formattedItems.length} cart items`)
     return NextResponse.json(formattedItems)
@@ -184,16 +204,31 @@ export async function POST(request: NextRequest) {
       [user.id]
     ) as any[]
 
-    const formattedItems = cartItems.map((item: any) => ({
-      id: item.id.toString(),
-      name: item.name,
-      price: parseFloat(item.price),
-      image: item.image || '/placeholder.svg',
-      size: item.size,
-      quantity: item.quantity,
-      color: item.color,
-      brand: item.brand
-    }))
+    // Get pricing settings and apply calculations
+    const pricingSettings = await getPricingSettings()
+    
+    // Get BASE_URL for image processing
+    const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || ""
+    
+    const formattedItems = cartItems.map((item: any) => {
+      // Use the same approach as products API - no BASE_URL processing
+      const imageUrl = item.image || '/placeholder-product.jpg'
+      
+      // Apply pricing calculations to get the final price
+      const basePrice = parseFloat(item.price)
+      const finalPrice = calculatePrice(basePrice, pricingSettings)
+      
+      return {
+        id: item.id.toString(),
+        name: item.name,
+        price: finalPrice,
+        image: imageUrl,
+        size: item.size,
+        quantity: item.quantity,
+        color: item.color,
+        brand: item.brand
+      }
+    })
 
     return NextResponse.json(formattedItems)
 
@@ -287,16 +322,31 @@ export async function PUT(request: NextRequest) {
       [user.id]
     ) as any[]
 
-    const formattedItems = cartItems.map((item: any) => ({
-      id: item.id.toString(),
-      name: item.name,
-      price: parseFloat(item.price),
-      image: item.image || '/placeholder.svg',
-      size: item.size,
-      quantity: item.quantity,
-      color: item.color,
-      brand: item.brand
-    }))
+    // Get pricing settings and apply calculations
+    const pricingSettings = await getPricingSettings()
+    
+    // Get BASE_URL for image processing
+    const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || ""
+    
+    const formattedItems = cartItems.map((item: any) => {
+      // Use the same approach as products API - no BASE_URL processing
+      const imageUrl = item.image || '/placeholder-product.jpg'
+      
+      // Apply pricing calculations to get the final price
+      const basePrice = parseFloat(item.price)
+      const finalPrice = calculatePrice(basePrice, pricingSettings)
+      
+      return {
+        id: item.id.toString(),
+        name: item.name,
+        price: finalPrice,
+        image: imageUrl,
+        size: item.size,
+        quantity: item.quantity,
+        color: item.color,
+        brand: item.brand
+      }
+    })
 
     return NextResponse.json(formattedItems)
 
@@ -377,16 +427,31 @@ export async function DELETE(request: NextRequest) {
       [user.id]
     ) as any[]
 
-    const formattedItems = cartItems.map((item: any) => ({
-      id: item.id.toString(),
-      name: item.name,
-      price: parseFloat(item.price),
-      image: item.image || '/placeholder.svg',
-      size: item.size,
-      quantity: item.quantity,
-      color: item.color,
-      brand: item.brand
-    }))
+    // Get pricing settings and apply calculations
+    const pricingSettings = await getPricingSettings()
+    
+    // Get BASE_URL for image processing
+    const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || ""
+    
+    const formattedItems = cartItems.map((item: any) => {
+      // Use the same approach as products API - no BASE_URL processing
+      const imageUrl = item.image || '/placeholder-product.jpg'
+      
+      // Apply pricing calculations to get the final price
+      const basePrice = parseFloat(item.price)
+      const finalPrice = calculatePrice(basePrice, pricingSettings)
+      
+      return {
+        id: item.id.toString(),
+        name: item.name,
+        price: finalPrice,
+        image: imageUrl,
+        size: item.size,
+        quantity: item.quantity,
+        color: item.color,
+        brand: item.brand
+      }
+    })
 
     return NextResponse.json({ success: true, items: formattedItems })
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import pool from '@/lib/database/mysql';
+import { sendAccountCreationSuccessEmail } from '@/lib/email/email-service';
 
 // Admin user interface
 interface AdminUser {
@@ -95,6 +96,16 @@ export async function POST(request: NextRequest) {
     );
     const insertResult = result as any;
     
+    // Send account creation success email
+    const emailSent = await sendAccountCreationSuccessEmail(
+      body.email,
+      body.first_name,
+      'admin'
+    );
+    if (!emailSent) {
+      console.warn('⚠️ Failed to send account creation email, but admin user was created successfully');
+    }
+    
     return NextResponse.json({
       success: true,
       data: {
@@ -104,7 +115,8 @@ export async function POST(request: NextRequest) {
         email: body.email,
         phone: body.phone || null,
         is_active: true
-      }
+      },
+      emailSent
     }, { status: 201 });
   } catch (error) {
     console.error('MySQL Admin API Error:', error);

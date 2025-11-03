@@ -18,19 +18,24 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { 
   philippinesLocations, 
   getCitiesForProvince, 
   getProvinceNames,
+  getBarangaysForCity,
   City,
-  Province
+  Province,
+  Barangay
 } from "@/lib/philippines-locations"
 
 interface LocationSelectorProps {
   selectedProvince?: string
   selectedCity?: string
+  selectedBarangay?: string
   onProvinceChange: (province: string) => void
   onCityChange: (city: string) => void
+  onBarangayChange: (barangay: string) => void
   className?: string
   disabled?: boolean
   required?: boolean
@@ -39,8 +44,10 @@ interface LocationSelectorProps {
 export function LocationSelector({
   selectedProvince = "",
   selectedCity = "",
+  selectedBarangay = "",
   onProvinceChange,
   onCityChange,
+  onBarangayChange,
   className,
   disabled = false,
   required = false
@@ -58,9 +65,10 @@ export function LocationSelector({
       const cityExists = availableCities.some(city => city.name === selectedCity)
       if (!cityExists) {
         onCityChange("")
+        onBarangayChange("") // Also reset barangay when city is reset
       }
     }
-  }, [selectedProvince, selectedCity, onCityChange])
+  }, [selectedProvince, selectedCity, onCityChange, onBarangayChange])
 
   const handleProvinceSelect = (province: string) => {
     console.log('Raw province value from cmdk:', province)
@@ -71,16 +79,18 @@ export function LocationSelector({
     
     onProvinceChange(actualProvince)
     onCityChange("") // Reset city when province changes
+    onBarangayChange("") // Reset barangay when province changes
     setProvinceOpen(false)
   }
 
   const handleCitySelect = (city: string) => {
     onCityChange(city)
+    onBarangayChange("") // Reset barangay when city changes
     setCityOpen(false)
   }
 
   return (
-    <div className={cn("grid grid-cols-1 md:grid-cols-2 gap-4", className)}>
+    <div className={cn("grid grid-cols-1 md:grid-cols-3 gap-4", className)}>
       {/* Province Selector */}
       <div className="space-y-2">
         <Label htmlFor="province" className="text-sm text-gray-700 dark:text-gray-300">
@@ -171,6 +181,22 @@ export function LocationSelector({
             </Command>
           </PopoverContent>
         </Popover>
+      </div>
+
+      {/* Barangay Input */}
+      <div className="space-y-2">
+        <Label htmlFor="barangay" className="text-sm text-gray-700 dark:text-gray-300">
+          Barangay {required && <span className="text-red-500">*</span>}
+        </Label>
+        <Input
+          id="barangay"
+          type="text"
+          placeholder="Enter barangay..."
+          value={selectedBarangay}
+          onChange={(e) => onBarangayChange(e.target.value)}
+          className="h-10 sm:h-12 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white"
+          disabled={disabled}
+        />
       </div>
     </div>
   )

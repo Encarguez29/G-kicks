@@ -21,6 +21,13 @@ import {
 import { toast } from "sonner"
 import { useAdmin } from "@/contexts/admin-context"
 import { useToast } from "@/hooks/use-toast"
+import { generateOrderId } from "@/lib/order-utils"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+
+interface PricingSettings {
+  admin_fee: number;
+  markup_percentage: number;
+}
 
 interface DailySale {
   amount: number;
@@ -51,6 +58,10 @@ interface Transaction {
   timestamp: string
   customerName?: string
   paymentDetails?: {method: string, amount: number}[]
+  itemCount?: number // Added missing property
+  totalQuantity?: number // Added missing property
+  amountPaid?: number // Amount paid by customer
+  change?: number // Change given to customer
 }
 
 export default function POSPage() {
@@ -67,6 +78,7 @@ export default function POSPage() {
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false)
   const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false)
   const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false)
+  const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState("cash")
   const [customerName, setCustomerName] = useState("")
   const [amountPaid, setAmountPaid] = useState(0)
@@ -86,17 +98,17 @@ export default function POSPage() {
   const [couponCode, setCouponCode] = useState<string>("")
   const [appliedDiscount, setAppliedDiscount] = useState<{type: string, value: number, amount: number} | null>(null)
 
-  // Refund system state
-  const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false)
-  const [refundTransactionId, setRefundTransactionId] = useState("")
-  const [refundItems, setRefundItems] = useState<CartItem[]>([])
-  const [refundReason, setRefundReason] = useState("")
-  const [refundAmount, setRefundAmount] = useState(0)
-  const [originalTransaction, setOriginalTransaction] = useState<Transaction | null>(null)
+
 
   // Multi-payment support state
   const [isMultiPaymentMode, setIsMultiPaymentMode] = useState(false)
   const [paymentMethods, setPaymentMethods] = useState<{method: string, amount: number}[]>([{method: 'cash', amount: 0}])
+
+  // Transaction details state
+  const [selectedTransactionForDetails, setSelectedTransactionForDetails] = useState<any>(null)
+  const [isOrderDetailsDialogOpen, setIsOrderDetailsDialogOpen] = useState(false)
+  const [transactionDetails, setTransactionDetails] = useState<any>(null)
+  const [loadingTransactionDetails, setLoadingTransactionDetails] = useState(false)
   const [remainingAmount, setRemainingAmount] = useState(0)
 
   // Cash drawer state
@@ -107,6 +119,9 @@ export default function POSPage() {
 
   // Mobile navigation state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  // Pricing settings state
+  const [pricingSettings, setPricingSettings] = useState<PricingSettings>({ admin_fee: 0, markup_percentage: 0 })
   const [showMoreProducts, setShowMoreProducts] = useState(false)
   const [showMoreCartItems, setShowMoreCartItems] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -152,6 +167,7 @@ export default function POSPage() {
       loadDailySales()
       refreshInventory()
       loadTransactions()
+      loadPricingSettings()
     }
   }, [state.isAuthenticated, state.isLoading])
 
@@ -169,22 +185,39 @@ export default function POSPage() {
 
   const refreshInventory = async () => {
     try {
+      console.log('🔄 POS: Refreshing inventory with real-time stock...')
       const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
-      const response = await fetch('/api/pos/inventory', {
+      const response = await fetch('/api/pos/stock', {
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
           'Content-Type': 'application/json'
         }
       })
-      if (!response.ok) {
-        throw new Error('Failed to fetch inventory')
-      }
-      const data = await response.json()
-      if (Array.isArray(data)) {
-        setInventory(data)
+      
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && Array.isArray(data.products)) {
+          setInventory(data.products)
+          console.log('✅ POS: Inventory refreshed with real-time stock')
+        } else {
+          console.warn("Invalid stock data received:", data)
+          setInventory([])
+        }
       } else {
-        console.warn("Invalid inventory data received:", data)
-        setInventory([])
+        console.error('❌ POS: Failed to fetch real-time stock data')
+        // Fallback to existing inventory API
+        const fallbackResponse = await fetch('/api/pos/inventory', {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            'Content-Type': 'application/json'
+          }
+        })
+        if (fallbackResponse.ok) {
+          const fallbackData = await fallbackResponse.json()
+          if (Array.isArray(fallbackData)) {
+            setInventory(fallbackData)
+          }
+        }
       }
     } catch (error) {
       console.error("Error refreshing inventory:", error)
@@ -217,8 +250,6 @@ export default function POSPage() {
   }
 
 
-
-
   const loadTransactions = async () => {
     try {
       // Load all recent transactions (not just today's)
@@ -233,14 +264,17 @@ export default function POSPage() {
         const data = await response.json()
         const transactionsArray = data.transactions || data
         if (Array.isArray(transactionsArray)) {
-          // Convert API format to component format
+          // Convert API format to component format with proper transaction IDs
           const formattedTransactions = transactionsArray.map((t: any) => ({
-            id: t.id,
-            items: JSON.parse(t.items || '[]'),
+            id: t.transaction_id || t.id, // Use transaction_id instead of auto-increment id
+            dbId: t.id, // Keep database ID for fetching details
+            items: [], // Will be loaded when details are requested
             total: t.total_amount || t.total || 0,
             paymentMethod: t.payment_method || 'cash',
             timestamp: t.created_at || new Date().toISOString(),
-            customerName: t.customer_name
+            customerName: t.customer_name,
+            itemCount: t.item_count || 0,
+            totalQuantity: t.total_quantity || 0
           }))
           setTransactions(formattedTransactions)
         }
@@ -248,6 +282,55 @@ export default function POSPage() {
     } catch (error) {
       console.error("Error loading transactions:", error)
       setTransactions([])
+    }
+  }
+
+  // Load pricing settings
+  const loadPricingSettings = async () => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch('/api/pricing-settings', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setPricingSettings({
+          admin_fee: parseFloat(data.admin_fee) || 0,
+          markup_percentage: parseFloat(data.markup_percentage) || 0
+        })
+      }
+    } catch (error) {
+      console.error('Error loading pricing settings:', error)
+    }
+  }
+
+  // Function to load transaction details
+  const loadTransactionDetails = async (transaction: any) => {
+    setLoadingTransactionDetails(true)
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
+      const response = await fetch(`/api/pos/transactions/${transaction.dbId}`, {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setTransactionDetails(data)
+        setSelectedTransactionForDetails(transaction)
+        setIsOrderDetailsDialogOpen(true)
+      } else {
+        toast.error("Failed to load transaction details")
+      }
+    } catch (error) {
+      console.error("Error loading transaction details:", error)
+      toast.error("Error loading transaction details")
+    } finally {
+      setLoadingTransactionDetails(false)
     }
   }
 
@@ -273,6 +356,9 @@ export default function POSPage() {
       }
       
       const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
+      
+      console.log('🔄 POS: Saving transaction...', { transactionData, token: token ? 'present' : 'missing' })
+      
       const response = await fetch('/api/pos/transactions', {
         method: 'POST',
         headers: {
@@ -282,18 +368,39 @@ export default function POSPage() {
         body: JSON.stringify(transactionData)
       })
       
+      console.log('📡 POS: API response status:', response.status, response.statusText)
+      
       if (response.ok) {
+        const result = await response.json()
+        console.log('✅ POS: Transaction saved successfully:', result)
+        
         // Refresh transactions, inventory, and daily sales after successful save
         await loadTransactions()
         await refreshInventory()
         await loadDailySales()
         toast.success('Transaction saved successfully')
+        return result.transactionId // Return the unified transaction ID from API
       } else {
-        throw new Error('Failed to save transaction')
+        // Get detailed error message from response
+        let errorMessage = 'Failed to save transaction'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+          console.error('❌ POS: API error response:', errorData)
+        } catch (parseError) {
+          console.error('❌ POS: Failed to parse error response:', parseError)
+        }
+        
+        const fullError = `${errorMessage} (Status: ${response.status})`
+        console.error('❌ POS: Transaction save failed:', fullError)
+        toast.error(fullError)
+        throw new Error(fullError)
       }
     } catch (error) {
-      console.error("Error saving transaction:", error)
-      toast.error('Failed to save transaction')
+      console.error("❌ POS: Error saving transaction:", error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save transaction'
+      toast.error(errorMessage)
+      throw error // Re-throw the error so calling function knows it failed
     }
   }
 
@@ -309,11 +416,15 @@ export default function POSPage() {
   })
 
   const getTotalStock = (product: ProductInventory): number => {
-    if (!product?.variants) return 0
+    if (!product?.variants) {
+      // Fallback to stock_quantity if no variants
+      return product?.stock_quantity || 0
+    }
 
     return Object.values(product.variants).reduce((total, variant) => {
-      if (!variant?.sizes) return total
-      return total + Object.values(variant.sizes).reduce((sum, qty) => sum + (typeof qty === "number" ? qty : 0), 0)
+      if (!variant || typeof variant !== 'object') return total
+      // Each variant is a sizes object: { [size: string]: number }
+      return total + Object.values(variant).reduce((sum, qty) => sum + (typeof qty === "number" ? qty : 0), 0)
     }, 0)
   }
 
@@ -444,8 +555,7 @@ export default function POSPage() {
   const getCartTotal = (): number => {
     const subtotal = getCartSubtotal()
     const discount = getDiscountAmount()
-    const tax = Math.max(0, (subtotal - discount) * 0.12)
-    return Math.max(0, subtotal - discount + tax)
+    return Math.max(0, subtotal - discount)
   }
 
   const getCartItemCount = (): number => {
@@ -463,7 +573,7 @@ export default function POSPage() {
     const paidAmount = isMultiPaymentMode ? getTotalPaidAmount() : amountPaid
     
     if (paidAmount < totalAmount) {
-      toast.error(`Insufficient payment. Remaining: ${formatCurrency(totalAmount - paidAmount)}`)
+      toast.error(`Insufficient Payment: ${formatCurrency(totalAmount - paidAmount)}`)
       return
     }
 
@@ -477,15 +587,23 @@ export default function POSPage() {
         timestamp: new Date().toISOString(),
         customerName: customerName || undefined,
         paymentDetails: isMultiPaymentMode ? paymentMethods.filter(p => p.amount > 0) : undefined,
+        amountPaid: isMultiPaymentMode ? getTotalPaidAmount() : amountPaid,
+        change: isMultiPaymentMode ? Math.max(0, getTotalPaidAmount() - totalAmount) : getChange(),
       }
 
       // Save transaction (this will handle stock updates and daily sales via API)
-      await saveTransaction(transaction)
-      setLastTransaction(transaction)
+      const actualTransactionId = await saveTransaction(transaction)
+      
+      // Update transaction with the actual ID from API
+      const updatedTransaction = {
+        ...transaction,
+        id: actualTransactionId || transaction.id
+      }
+      setLastTransaction(updatedTransaction)
 
       // Print receipt
       const transactionData = {
-        ...transaction,
+        ...updatedTransaction,
         subtotal: getCartSubtotal(),
         discount: getDiscountAmount(),
         tax: getTaxAmount(),
@@ -677,99 +795,46 @@ export default function POSPage() {
   }
 
   const getTaxAmount = (): number => {
-    const subtotal = getCartSubtotal()
-    const discount = getDiscountAmount()
-    const taxable = Math.max(0, subtotal - discount)
-    return Number((taxable * 0.12).toFixed(2))
+    return 0 // No VAT
   }
 
-  const searchTransaction = async (transactionId: string) => {
-    try {
-      const response = await fetch(`/api/pos/transactions/${transactionId}`)
-      if (response.ok) {
-        const transaction = await response.json()
-        setOriginalTransaction(transaction)
-        setRefundItems(transaction.items.map((item: CartItem) => ({ ...item, quantity: 0 })))
-        return transaction
-      } else {
-        toast.error('Transaction not found')
-        return null
-      }
-    } catch (error) {
-      console.error('Error searching transaction:', error)
-      toast.error('Failed to search transaction')
-      return null
-    }
-  }
-
-  const processRefund = async () => {
-    if (!originalTransaction || refundItems.length === 0) {
-      toast.error('No items selected for refund')
-      return
-    }
-
-    const itemsToRefund = refundItems.filter(item => item.quantity > 0)
-    if (itemsToRefund.length === 0) {
-      toast.error('Please select items to refund')
-      return
-    }
-
-    const totalRefundAmount = itemsToRefund.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-
-    try {
-      const refundTransaction = {
-        id: `REF-${Date.now()}`,
-        originalTransactionId: originalTransaction.id,
-        items: itemsToRefund,
-        total: -totalRefundAmount, // Negative amount for refund
-        paymentMethod: originalTransaction.paymentMethod,
-        timestamp: new Date().toISOString(),
-        customerName: originalTransaction.customerName,
-        reason: refundReason,
-        type: 'refund'
-      }
-
-      // Save refund transaction
-      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
-      const response = await fetch('/api/pos/transactions', {
-        method: 'POST',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(refundTransaction)
-      })
-
-      if (response.ok) {
-        // Update daily sales (subtract refund amount)
-        setDailySales(prev => prev - totalRefundAmount)
-        
-        // Clear refund form
-        setRefundTransactionId('')
-        setRefundItems([])
-        setRefundReason('')
-        setRefundAmount(0)
-        setOriginalTransaction(null)
-        setIsRefundDialogOpen(false)
-        
-        toast.success(`Refund processed: ₱${totalRefundAmount.toFixed(2)}`)
-      } else {
-        toast.error('Failed to process refund')
-      }
-    } catch (error) {
-      console.error('Error processing refund:', error)
-      toast.error('Failed to process refund')
-    }
-  }
-
-  const updateRefundItemQuantity = (index: number, quantity: number) => {
-    const maxQuantity = originalTransaction?.items[index]?.quantity || 0
-    const validQuantity = Math.max(0, Math.min(quantity, maxQuantity))
+  // Calculate price breakdown for cart items
+  const calculateCartPriceBreakdown = () => {
+    const cartSubtotal = getCartSubtotal()
     
-    setRefundItems(prev => prev.map((item, i) => 
-      i === index ? { ...item, quantity: validQuantity } : item
-    ))
+    // Calculate breakdown based on the original base prices
+    // Since cart items already have final prices, we need to reverse-calculate the base price
+    let totalBasePrice = 0
+    
+    cart.forEach(item => {
+      // Reverse calculate base price from final price
+      // Final Price = ((Base Price + Admin Fee) * (1 + Markup/100)) * 1.12
+      const finalPrice = item.price
+      const basePrice = finalPrice / (1.12 * (1 + pricingSettings.markup_percentage / 100)) - pricingSettings.admin_fee
+      totalBasePrice += basePrice * item.quantity
+    })
+    
+    const totalAdminFee = totalBasePrice > 0 ? (cart.reduce((sum, item) => sum + item.quantity, 0) * pricingSettings.admin_fee) : 0
+    const priceWithAdminFee = totalBasePrice + totalAdminFee
+    const markupAmount = priceWithAdminFee * (pricingSettings.markup_percentage / 100)
+    const priceWithMarkup = priceWithAdminFee + markupAmount
+    const vatAmount = priceWithMarkup * 0.12
+    const finalPrice = priceWithMarkup + vatAmount
+    
+    return {
+      basePrice: totalBasePrice,
+      adminFee: totalAdminFee,
+      markup: markupAmount,
+      vat: vatAmount,
+      finalPrice: finalPrice
+    }
   }
+
+
+
+
+
+
 
   const addPaymentMethod = (method: string) => {
     setPaymentMethods(prev => [...prev, {method, amount: 0}])
@@ -867,11 +932,15 @@ export default function POSPage() {
       return
     }
 
+    // Calculate VAT breakdown
+    const subtotalBeforeVAT = transactionData.total / 1.12 // Remove VAT to get base amount
+    const vatAmount = transactionData.total - subtotalBeforeVAT // 12% VAT
+
     const receiptHTML = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Receipt</title>
+        <title>Invoice</title>
         <style>
           body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -883,7 +952,7 @@ export default function POSPage() {
             color: #333;
             background: #f8f9fa;
           }
-          .receipt-container {
+          .invoice-container {
             background: white;
             padding: 30px;
             border-radius: 8px;
@@ -907,17 +976,17 @@ export default function POSPage() {
             font-weight: bold;
             margin-bottom: 3px;
           }
-          .receipt-header {
+          .invoice-header {
             text-align: right;
             margin-bottom: 25px;
           }
-          .receipt-title {
+          .invoice-title {
             font-size: 28px;
             font-weight: bold;
             margin-bottom: 10px;
             color: #2c3e50;
           }
-          .receipt-details {
+          .invoice-details {
             font-size: 11px;
             line-height: 1.5;
           }
@@ -990,6 +1059,8 @@ export default function POSPage() {
           .subtotal-line {
             padding-bottom: 8px;
           }
+
+
           .final-total {
             font-weight: bold;
             font-size: 16px;
@@ -1020,7 +1091,7 @@ export default function POSPage() {
               padding: 10px; 
               background: white;
             }
-            .receipt-container {
+            .invoice-container {
               box-shadow: none;
               padding: 20px;
             }
@@ -1028,7 +1099,7 @@ export default function POSPage() {
         </style>
       </head>
       <body>
-        <div class="receipt-container">
+        <div class="invoice-container">
           <div class="logo-section">
             <img src="/images/gkicks-transparent-logo.png" alt="GKicks Logo" />
           </div>
@@ -1040,11 +1111,11 @@ export default function POSPage() {
             <div>Calamba, 4027 Laguna, Philippines</div>
           </div>
           
-          <div class="receipt-header">
-            <div class="receipt-title">RECEIPT</div>
-            <div class="receipt-details">
-              <div>Receipt #: ${transactionData.id.slice(-6)}</div>
-              <div>Receipt Date: ${new Date(transactionData.timestamp).toLocaleDateString()}</div>
+          <div class="invoice-header">
+            <div class="invoice-title">INVOICE</div>
+            <div class="invoice-details">
+              <div>Invoice #: ${transactionData.id.slice(-6)}</div>
+              <div>Invoice Date: ${new Date(transactionData.timestamp).toLocaleDateString()}</div>
             </div>
           </div>
           
@@ -1081,27 +1152,34 @@ export default function POSPage() {
           
           <div class="totals-section">
             <div class="total-line subtotal-line">
-              <span>Subtotal:</span>
-              <span>₱${(transactionData.subtotal || transactionData.total).toFixed(2)}</span>
+              <span>Subtotal (before VAT):</span>
+              <span>₱${subtotalBeforeVAT.toFixed(2)}</span>
             </div>
-            ${transactionData.discount ? `
-              <div class="total-line">
-                <span>Discount:</span>
-                <span>-₱${transactionData.discount.toFixed(2)}</span>
-              </div>
-            ` : ''}
+            
             <div class="total-line">
-              <span>Tax (12%):</span>
-              <span>₱${(transactionData.tax || 0).toFixed(2)}</span>
+              <span>VAT (12%):</span>
+              <span>₱${vatAmount.toFixed(2)}</span>
             </div>
+            
             <div class="total-line final-total">
-              <span>Total</span>
+              <span>Total Amount (VAT Inclusive)</span>
               <span>₱${transactionData.total.toFixed(2)}</span>
             </div>
           </div>
           
+            <div class="total-line">
+              <span>Payment (${transactionData.paymentMethod || 'Cash'}):</span>
+              <span>₱${transactionData.amountPaid ? transactionData.amountPaid.toFixed(2) : transactionData.total.toFixed(2)}</span>
+            </div>
+            ${transactionData.change && transactionData.change > 0 ? `
+            <div class="total-line">
+              <span>Change:</span>
+              <span>₱${transactionData.change.toFixed(2)}</span>
+            </div>
+            ` : ''}
+          
           <div class="thank-you">
-            Thank you!
+            Thank you for your business!
           </div>
           
           <div class="contact-info">
@@ -1301,14 +1379,7 @@ export default function POSPage() {
                 <p className="text-2xl font-bold text-blue-600">{transactions.length}</p>
               </div>
             </Card>
-            <Button
-              onClick={() => setIsRefundDialogOpen(true)}
-              variant="outline"
-              className="p-4 h-auto flex flex-col items-center gap-2"
-            >
-              <Receipt className="w-6 h-6" />
-              <span className="text-sm">Process Refund</span>
-            </Button>
+
             <Button
               onClick={() => setShowCashDrawerDialog(true)}
               variant="outline"
@@ -1594,6 +1665,44 @@ export default function POSPage() {
                 </ScrollArea>
                 {cart.length > 0 && (
                   <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                    {/* Price Breakdown Section */}
+                    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-foreground">Price Breakdown</span>
+                      </div>
+                      {cart.length > 0 && (
+                        <div className="space-y-1 text-xs">
+                          {(() => {
+                            const breakdown = calculateCartPriceBreakdown()
+                            return (
+                              <>
+                                <div className="flex justify-between">
+                                  <span>Base Price:</span>
+                                  <span>₱{breakdown.basePrice.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>+ Admin Fee:</span>
+                                  <span>₱{breakdown.adminFee.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>+ Markup ({pricingSettings.markup_percentage || 0}%):</span>
+                                  <span>₱{breakdown.markup.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>+ VAT (12%):</span>
+                                  <span>₱{breakdown.vat.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between font-semibold border-t pt-1 mt-1">
+                                  <span>Final Price:</span>
+                                  <span>₱{breakdown.finalPrice.toFixed(2)}</span>
+                                </div>
+                              </>
+                            )
+                          })()}
+                        </div>
+                      )}
+                    </div>
+
                     {/* Discount Section */}
                     <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                       <div className="flex items-center justify-between mb-2">
@@ -1651,7 +1760,7 @@ export default function POSPage() {
                         </div>
                       )}
                     </div>
-                    
+
                     {/* Totals */}
                     <div className="space-y-2 mb-4">
                       <div className="flex justify-between items-center">
@@ -1664,10 +1773,7 @@ export default function POSPage() {
                           <span className="text-sm text-green-600 dark:text-green-400">-{formatCurrency(getDiscountAmount())}</span>
                         </div>
                       )}
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Tax (12%):</span>
-                        <span className="text-sm text-foreground">{formatCurrency(getTaxAmount())}</span>
-                      </div>
+
                       <Separator />
                       <div className="flex justify-between items-center">
                         <span className="text-lg font-semibold text-foreground">Total:</span>
@@ -1783,7 +1889,7 @@ export default function POSPage() {
                                       <span className="font-medium">{formatCurrency(getTotalPaidAmount())}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span>Remaining:</span>
+                                      <span>Insufficient Payment:</span>
                                       <span className={`font-medium ${getRemainingAmount() > 0 ? 'text-red-600' : 'text-green-600'}`}>
                                         {formatCurrency(getRemainingAmount())}
                                       </span>
@@ -1823,7 +1929,7 @@ export default function POSPage() {
                                 <p>Total: {formatCurrency(getCartTotal())}</p>
                                 {amountPaid > 0 && (
                                   amountPaid < getCartTotal() ? (
-                                    <p className="text-red-600">Remaining: {formatCurrency(getCartTotal() - amountPaid)}</p>
+                                    <p className="text-red-600">Insufficient Payment: {formatCurrency(getCartTotal() - amountPaid)}</p>
                                   ) : (
                                     <p>Change: {formatCurrency(getChange())}</p>
                                   )
@@ -1885,7 +1991,7 @@ export default function POSPage() {
                           className="border border-border rounded-lg p-3 bg-muted"
                         >
                           <div className="flex justify-between items-start">
-                            <div>
+                            <div className="flex-1">
                               <p className="font-medium text-sm text-foreground">{transaction.id}</p>
                               <p className="text-xs text-gray-600 dark:text-gray-300">
                                 {formatDate(transaction.timestamp)}
@@ -1898,17 +2004,36 @@ export default function POSPage() {
                               <p className="font-semibold text-foreground">
                   {formatCurrency(transaction.total)}
                 </p>
-                              <Badge
-                                variant="outline"
-                                className="text-xs border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
-                              >
-                                {transaction.paymentMethod}
-                              </Badge>
+                              <div className="flex flex-col gap-1">
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                                >
+                                  {transaction.paymentMethod}
+                                </Badge>
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-700"
+                                >
+                                  Walk-in
+                                </Badge>
+                              </div>
                             </div>
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            {transaction.items.length} item{transaction.items.length !== 1 ? "s" : ""}
-                          </p>
+                          <div className="flex justify-between items-center mt-2">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {transaction.itemCount} item{transaction.itemCount !== 1 ? "s" : ""} • {transaction.totalQuantity} total qty
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => loadTransactionDetails(transaction)}
+                              disabled={loadingTransactionDetails}
+                              className="text-xs h-6 px-2"
+                            >
+                              {loadingTransactionDetails ? "Loading..." : "View Details"}
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2201,6 +2326,25 @@ export default function POSPage() {
                   <span className="text-foreground">{formatCurrency(lastTransaction.total)}</span>
                 </div>
 
+                {/* Payment Information */}
+                {lastTransaction.amountPaid !== undefined && (
+                  <>
+                    <Separator />
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Amount Paid:</span>
+                        <span className="text-foreground">{formatCurrency(lastTransaction.amountPaid)}</span>
+                      </div>
+                      {lastTransaction.change !== undefined && lastTransaction.change > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Change:</span>
+                          <span className="text-foreground">{formatCurrency(lastTransaction.change)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
                 <div className="text-center pt-4">
                   <p className="text-sm text-muted-foreground">Thank you for your purchase!</p>
                 </div>
@@ -2236,147 +2380,7 @@ export default function POSPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Refund Dialog */}
-        <Dialog open={isRefundDialogOpen} onOpenChange={setIsRefundDialogOpen}>
-          <DialogContent className="max-w-2xl bg-card border-border">
-            <DialogHeader>
-              <DialogTitle className="text-foreground">Process Refund</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="transaction-id" className="text-foreground">Transaction ID</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="transaction-id"
-                    placeholder="Enter transaction ID..."
-                    value={refundTransactionId}
-                    onChange={(e) => setRefundTransactionId(e.target.value)}
-                    className="bg-background border-border text-foreground"
-                  />
-                  <Button
-                    onClick={() => searchTransaction(refundTransactionId)}
-                    disabled={!refundTransactionId.trim()}
-                  >
-                    Search
-                  </Button>
-                </div>
-              </div>
 
-              {originalTransaction && (
-                <div className="space-y-4">
-                  <div className="bg-muted p-4 rounded-lg">
-                    <h4 className="font-semibold text-foreground mb-2">Original Transaction</h4>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">ID:</span>
-                        <span className="ml-2 font-mono text-foreground">{originalTransaction.id}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Date:</span>
-                        <span className="ml-2 text-foreground">{formatDate(originalTransaction.timestamp)}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Total:</span>
-                        <span className="ml-2 text-foreground">{formatCurrency(originalTransaction.total)}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Payment:</span>
-                        <span className="ml-2 capitalize text-foreground">{originalTransaction.paymentMethod}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-foreground">Select Items to Refund</Label>
-                    <div className="border border-border rounded-lg p-4 max-h-60 overflow-y-auto">
-                      {refundItems.map((item, index) => (
-                        <div key={index} className="flex items-center justify-between py-2 border-b border-border last:border-b-0">
-                          <div className="flex-1">
-                            <div className="font-medium text-foreground">{item.name}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {item.color} • Size {item.size} • {formatCurrency(item.price)}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Original Qty: {originalTransaction.items[index]?.quantity || 0}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateRefundItemQuantity(index, item.quantity - 1)}
-                              disabled={item.quantity <= 0}
-                            >
-                              <Minus className="w-4 h-4" />
-                            </Button>
-                            <span className="w-8 text-center text-foreground">{item.quantity}</span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateRefundItemQuantity(index, item.quantity + 1)}
-                              disabled={item.quantity >= (originalTransaction.items[index]?.quantity || 0)}
-                            >
-                              <Plus className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="refund-reason" className="text-foreground">Refund Reason</Label>
-                    <Select value={refundReason} onValueChange={setRefundReason}>
-                      <SelectTrigger className="bg-background border-border text-foreground">
-                        <SelectValue placeholder="Select refund reason" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="defective">Defective Product</SelectItem>
-                        <SelectItem value="wrong-size">Wrong Size</SelectItem>
-                        <SelectItem value="wrong-item">Wrong Item</SelectItem>
-                        <SelectItem value="customer-request">Customer Request</SelectItem>
-                        <SelectItem value="damaged-shipping">Damaged in Shipping</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="bg-muted p-4 rounded-lg">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-foreground">Refund Amount:</span>
-                      <span className="text-lg font-bold text-red-600">
-                        {formatCurrency(refundItems.reduce((sum, item) => sum + (item.price * item.quantity), 0))}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={processRefund}
-                      disabled={!refundReason || refundItems.every(item => item.quantity === 0)}
-                      className="flex-1 bg-red-600 hover:bg-red-700 text-white"
-                    >
-                      Process Refund
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setIsRefundDialogOpen(false)
-                        setRefundTransactionId('')
-                        setOriginalTransaction(null)
-                        setRefundItems([])
-                        setRefundReason('')
-                      }}
-                      variant="outline"
-                      className="flex-1"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
 
         {/* Cash Drawer Settings Dialog */}
         <Dialog open={showCashDrawerDialog} onOpenChange={setShowCashDrawerDialog}>
@@ -2457,6 +2461,164 @@ export default function POSPage() {
                 </ul>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Order Details Dialog */}
+        <Dialog open={isOrderDetailsDialogOpen} onOpenChange={setIsOrderDetailsDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-card border-border">
+            <DialogHeader>
+              <DialogTitle className="text-foreground">
+                Order Details - {selectedTransactionForDetails?.id}
+              </DialogTitle>
+            </DialogHeader>
+            {transactionDetails && (
+              <div className="space-y-6">
+                {/* Transaction Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+                  <div>
+                    <h3 className="font-semibold text-foreground mb-2">Transaction Information</h3>
+                    <div className="space-y-1 text-sm">
+                      <p><span className="font-medium">Transaction ID:</span> {transactionDetails.transaction.transactionId}</p>
+                      <p><span className="font-medium">Date:</span> {formatDate(transactionDetails.transaction.transactionDate)}</p>
+                      <div><span className="font-medium">Status:</span> 
+                        <Badge variant="outline" className="ml-2">
+                          {transactionDetails.transaction.status}
+                        </Badge>
+                      </div>
+                      <p><span className="font-medium">Payment Method:</span> {transactionDetails.transaction.paymentMethod}</p>
+                      {transactionDetails.transaction.paymentReference && (
+                        <p><span className="font-medium">Reference:</span> {transactionDetails.transaction.paymentReference}</p>
+                      )}
+                      {transactionDetails.transaction.cashierName && (
+                        <p><span className="font-medium">Cashier:</span> {transactionDetails.transaction.cashierName}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground mb-2">Customer Information</h3>
+                    <div className="space-y-1 text-sm">
+                      {transactionDetails.transaction.customerName ? (
+                        <>
+                          <p><span className="font-medium">Name:</span> {transactionDetails.transaction.customerName}</p>
+                          {transactionDetails.transaction.customerPhone && (
+                            <p><span className="font-medium">Phone:</span> {transactionDetails.transaction.customerPhone}</p>
+                          )}
+                          {transactionDetails.transaction.customerEmail && (
+                            <p><span className="font-medium">Email:</span> {transactionDetails.transaction.customerEmail}</p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-gray-500">Walk-in customer</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Order Summary */}
+                <div className="p-4 bg-muted rounded-lg">
+                  <h3 className="font-semibold text-foreground mb-2">Order Summary</h3>
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="font-medium">Items Count</p>
+                      <p className="text-lg">{transactionDetails.summary.itemCount}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium">Total Quantity</p>
+                      <p className="text-lg">{transactionDetails.summary.totalQuantity}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium">Total Amount</p>
+                      <p className="text-lg font-bold">{formatCurrency(transactionDetails.transaction.totalAmount)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Items List */}
+                <div>
+                  <h3 className="font-semibold text-foreground mb-4">Items Ordered</h3>
+                  <div className="space-y-3">
+                    {transactionDetails.items.map((item: any, index: number) => (
+                      <div key={index} className="flex items-center gap-4 p-3 border border-border rounded-lg bg-background">
+                        <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden flex-shrink-0">
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = "/placeholder.svg?height=64&width=64"
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-foreground">{item.name}</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-300">{item.brand}</p>
+                          <div className="flex gap-4 text-sm text-gray-600 dark:text-gray-300">
+                            <span>Color: {item.color}</span>
+                            <span>Size: {item.size}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium text-foreground">{formatCurrency(item.unitPrice)}</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-300">Qty: {item.quantity}</p>
+                          <p className="font-semibold text-foreground">{formatCurrency(item.totalPrice)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Payment Details */}
+                <div className="p-4 bg-muted rounded-lg">
+                  <h3 className="font-semibold text-foreground mb-2">Payment Details</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span>{formatCurrency(transactionDetails.transaction.subtotal)}</span>
+                    </div>
+                    {transactionDetails.transaction.discountAmount > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Discount:</span>
+                        <span>-{formatCurrency(transactionDetails.transaction.discountAmount)}</span>
+                      </div>
+                    )}
+                    {transactionDetails.transaction.taxAmount > 0 && (
+                      <div className="flex justify-between">
+                        <span>Tax:</span>
+                        <span>{formatCurrency(transactionDetails.transaction.taxAmount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-semibold text-lg border-t border-border pt-2">
+                      <span>Total:</span>
+                      <span>{formatCurrency(transactionDetails.transaction.totalAmount)}</span>
+                    </div>
+                    {transactionDetails.transaction.paymentMethod === 'cash' && (
+                      <>
+                        {transactionDetails.transaction.cashReceived && (
+                          <div className="flex justify-between">
+                            <span>Cash Received:</span>
+                            <span>{formatCurrency(transactionDetails.transaction.cashReceived)}</span>
+                          </div>
+                        )}
+                        {transactionDetails.transaction.changeGiven && (
+                          <div className="flex justify-between">
+                            <span>Change Given:</span>
+                            <span>{formatCurrency(transactionDetails.transaction.changeGiven)}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {transactionDetails.transaction.notes && (
+                  <div className="p-4 bg-muted rounded-lg">
+                    <h3 className="font-semibold text-foreground mb-2">Notes</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">{transactionDetails.transaction.notes}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>

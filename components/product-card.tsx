@@ -5,6 +5,7 @@ import type React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
+// Removed client-side pricing import since API already applies pricing
 
 
 
@@ -46,6 +47,9 @@ interface ProductCardProps {
 
 export function ProductCard({ product, onViewUpdate }: ProductCardProps) {
   const router = useRouter()
+  // Use prices directly from API since they're already calculated
+  const finalPrice = product.price || 0
+  const finalOriginalPrice = product.originalPrice || null
 
   const safeProduct = {
     id: product?.id || 0,
@@ -281,11 +285,11 @@ export function ProductCard({ product, onViewUpdate }: ProductCardProps) {
             <div className="flex flex-col flex-1">
               <div className="flex items-center space-x-1 sm:space-x-2">
                 <span className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 dark:text-yellow-400">
-                  ₱{(safeProduct.price || 0).toLocaleString()}
+                  ₱{finalPrice.toLocaleString()}
                 </span>
-                {safeProduct.originalPrice && (
+                {finalOriginalPrice && (
                   <span className="text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg text-gray-500 dark:text-gray-400 line-through">
-                    ₱{safeProduct.originalPrice.toLocaleString()}
+                    ₱{finalOriginalPrice.toLocaleString()}
                   </span>
                 )}
               </div>

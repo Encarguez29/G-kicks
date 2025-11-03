@@ -75,9 +75,10 @@ export async function GET(request: NextRequest) {
           const userAvatarUrl = userDataArray[0].avatar_url || ''
           
           // Update profile with user data (preserve existing avatar_url)
+          const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
           const updateQuery = `
             UPDATE profiles 
-            SET first_name = ?, last_name = ?, avatar_url = ?, updated_at = NOW()
+            SET first_name = ?, last_name = ?, avatar_url = ?, updated_at = ?
             WHERE id = ?
           `
           
@@ -88,6 +89,7 @@ export async function GET(request: NextRequest) {
             userFirstName,
             userLastName,
             finalAvatarUrl,
+            currentTimestamp,
             user.id
           ])
           
@@ -266,9 +268,10 @@ export async function PUT(request: NextRequest) {
     let result
     if (profileExists) {
       // Update existing profile
+      const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
       const updateQuery = `
         UPDATE profiles 
-        SET first_name = ?, last_name = ?, phone = ?, birthdate = ?, gender = ?, bio = ?, avatar_url = ?, preferences = ?, updated_at = NOW()
+        SET first_name = ?, last_name = ?, phone = ?, birthdate = ?, gender = ?, bio = ?, avatar_url = ?, preferences = ?, updated_at = ?
         WHERE id = ?`
       
       // Format birthdate for database storage
@@ -299,6 +302,7 @@ export async function PUT(request: NextRequest) {
           preferred_language: 'en',
           currency: 'PHP'
         }),
+        currentTimestamp,
         user.id
       ]
       
@@ -306,9 +310,10 @@ export async function PUT(request: NextRequest) {
       result = await executeQuery(updateQuery, updateParams)
     } else {
       // Create new profile
+      const currentTimestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
       const insertQuery = `
         INSERT INTO profiles (id, first_name, last_name, phone, birthdate, gender, bio, avatar_url, preferences, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       
       const insertParams = [
         user.id,
@@ -325,7 +330,9 @@ export async function PUT(request: NextRequest) {
           email_notifications: true,
           preferred_language: 'en',
           currency: 'PHP'
-        })
+        }),
+        currentTimestamp,
+        currentTimestamp
       ]
       
       console.log('💾 API: Creating new profile with params:', insertParams)

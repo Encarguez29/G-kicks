@@ -22,6 +22,7 @@ export interface ProductInventory {
   is_new?: boolean;
   is_sale?: boolean;
   is_active: boolean;
+  stock_quantity?: number; // Added missing property
   low_stock_threshold?: number;
   colors?: string[]; // Array of colors
   variants?: Record<string, Record<string, number>>; // { color: { size: quantity } }
@@ -226,8 +227,10 @@ export async function syncToHomepage(): Promise<void> {
 
 export interface Order {
   id: string;
+  order_number?: string; // Added missing order_number property
   customerName?: string;
   customerEmail?: string;
+  order_source?: 'online' | 'walk-in'; // Source of the order
   items: Array<{
     name: string;
     image?: string;
@@ -242,7 +245,10 @@ export interface Order {
     | "confirmed"
     | "processing"
     | "shipped"
-    | "cancelled";
+    | "delivered"
+    | "cancelled"
+    | "returned"
+    | "pending_cancellation";
   orderDate: string; // ISO string
   created_at?: string; // Database field
   shippingAddress: {
@@ -257,6 +263,8 @@ export interface Order {
   payment_screenshot?: string;
   payment_reference?: string | null;
   trackingNumber?: string;
+  cancellation_requested_at?: string | null; // Timestamp when cancellation was requested
+  cancellation_reason?: string | null; // Customer's reason for cancellation
 }
 
 /**

@@ -33,7 +33,7 @@ interface AnalyticsData {
   currentMonth: { orders: number; revenue: number; customers: number }
   lastMonth: { orders: number; revenue: number; customers: number }
   recentActivity: Array<{ type: string; id: string; amount: number; status: string; date: string; customer: string }>
-  lifetimeTotals?: { orders: number }
+  lifetimeTotals?: { orders: number; revenue: number; ongoingOrders: number; deliveredOrders: number; cancelledOrders: number; returnedOrders: number }
 }
 
 const COLORS = ["#FBBF24", "#10B981", "#3B82F6", "#EF4444", "#8B5CF6"]
@@ -220,7 +220,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-card-foreground">
-              ₱{analyticsData?.currentMonth.revenue?.toLocaleString() || '0.00'}
+              ₱{analyticsData?.lifetimeTotals?.revenue?.toLocaleString() || '0.00'}
             </div>
             <p className="text-xs text-muted-foreground">
               <span className={(analyticsData?.growth?.revenue || 0) >= 0 ? "text-green-500" : "text-red-500"}>
@@ -239,7 +239,7 @@ export default function AnalyticsPage() {
               {analyticsData?.lifetimeTotals?.orders?.toLocaleString() || '0'}
             </div>
             <p className="text-xs text-muted-foreground">
-              All-time orders across online and POS
+              {analyticsData?.lifetimeTotals?.ongoingOrders || 0} ongoing, {analyticsData?.lifetimeTotals?.deliveredOrders || 0} delivered, {analyticsData?.lifetimeTotals?.returnedOrders || 0} returned, {analyticsData?.lifetimeTotals?.cancelledOrders || 0} cancelled
             </p>
           </CardContent>
         </Card>
