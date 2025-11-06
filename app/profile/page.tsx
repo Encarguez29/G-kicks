@@ -73,6 +73,8 @@ export default function ProfilePage() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const { addresses, loading: addressLoading, fetchAddresses, createAddress, updateAddress, deleteAddress } = useAddresses()
+  // Local saving state for address operations (separate from hook's fetch loading)
+  const [addressSaving, setAddressSaving] = useState(false)
   const [currentAddressId, setCurrentAddressId] = useState<string | null>(null)
   // Orders count state
   const [ordersCount, setOrdersCount] = useState<number>(0)
@@ -481,7 +483,7 @@ export default function ProfilePage() {
       return
     }
 
-    setAddressLoading(true)
+    setAddressSaving(true)
     try {
       const addressPayload = {
         address_line_1: addressData.street_address.trim(),
@@ -547,7 +549,7 @@ export default function ProfilePage() {
         variant: "destructive",
       })
     } finally {
-      setAddressLoading(false)
+      setAddressSaving(false)
     }
   }
 
@@ -996,9 +998,9 @@ export default function ProfilePage() {
 
                       <Button
                         onClick={handleSaveAddress}
-                        disabled={addressLoading}
+                        disabled={addressLoading || addressSaving}
                       >
-                        {addressLoading ? (
+                        {addressLoading || addressSaving ? (
                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
                         ) : (
                           <Save className="h-4 w-4 mr-2" />
