@@ -19,7 +19,8 @@ import { useAuth } from "@/contexts/auth-context"
 import { useCart } from "@/contexts/cart-context"
 import { useWishlist } from "@/contexts/wishlist-context"
 import { LocationSelector } from "@/components/ui/location-selector"
-import { useAddresses } from "@/hooks/use-addresses"
+// Use a relative import to avoid alias resolution issues on some deployments
+import { useAddresses } from "../../hooks/use-addresses"
 import {
   Camera,
   MapPin,
