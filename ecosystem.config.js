@@ -4,7 +4,7 @@ module.exports = {
       name: 'gkicks-app',
       script: 'npm',
       args: 'start',
-      cwd: '/var/www/gkicks-shop/GKICKS-SHOP-2.0',
+      cwd: '/var/www/gkicks-shop/GKICKS-SHOP-3.0',
       instances: 'max', // Use all available CPU cores
       exec_mode: 'cluster',
       env: {
@@ -45,7 +45,7 @@ module.exports = {
     {
       name: 'gkicks-admin-server',
       script: 'admin-server.js',
-      cwd: '/var/www/gkicks-shop/GKICKS-SHOP-2.0',
+      cwd: '/var/www/gkicks-shop/GKICKS-SHOP-3.0',
       instances: 1,
       exec_mode: 'fork',
       env: {
@@ -88,7 +88,7 @@ module.exports = {
       repo: 'https://github.com/yourusername/gkicks-shop.git',
       path: '/var/www/gkicks-shop',
       'pre-deploy-local': '',
-      'post-deploy': 'cd GKICKS-SHOP-2.0 && npm install && npm run build && pm2 reload ecosystem.config.js --env production',
+      'post-deploy': 'cd GKICKS-SHOP-3.0 && npm install && npm run build && pm2 reload ecosystem.config.js --env production',
       'pre-setup': 'apt update && apt install git -y'
     },
     staging: {
@@ -97,7 +97,7 @@ module.exports = {
       ref: 'origin/develop',
       repo: 'https://github.com/yourusername/gkicks-shop.git',
       path: '/var/www/gkicks-shop-staging',
-      'post-deploy': 'cd GKICKS-SHOP-2.0 && npm install && npm run build && pm2 reload ecosystem.config.js --env staging',
+      'post-deploy': 'cd GKICKS-SHOP-3.0 && npm install && npm run build && pm2 reload ecosystem.config.js --env staging',
       env: {
         NODE_ENV: 'staging',
         PORT: 3002
