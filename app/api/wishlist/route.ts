@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/database/mysql'
 import jwt from 'jsonwebtoken'
+import { getPricingSettings, calculatePrice } from '@/lib/pricing-utils'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret'
 
@@ -69,6 +70,9 @@ export async function GET(request: NextRequest) {
     console.log('🔍 API: Raw wishlist data from database:', results.map(item => ({ id: item.id, name: item.name, image: item.image, hasImage: !!item.image })))
     console.log('🔍 API: Total wishlist items found:', results.length)
     
+    // Get pricing settings to apply admin fee, markup, and VAT
+    const pricingSettings = await getPricingSettings()
+    
     // Transform the data to match the WishlistItem interface
     const wishlistItems = results.map((item: any) => {
       let colors = []
@@ -94,12 +98,17 @@ export async function GET(request: NextRequest) {
         imageLength: item.image ? item.image.length : 0
       })
       
+      // Ensure numeric price values
+      const basePrice = typeof item.price === 'string' ? parseFloat(item.price) : item.price
+      const baseOriginalPrice = typeof item.original_price === 'string' ? parseFloat(item.original_price) : item.original_price
+
       return {
         id: item.id,
         name: item.name,
         brand: item.brand,
-        price: item.price,
-        originalPrice: item.original_price,
+        // Apply pricing rules so refresh keeps computed price
+        price: calculatePrice(basePrice, pricingSettings),
+        originalPrice: baseOriginalPrice != null ? calculatePrice(baseOriginalPrice, pricingSettings) : undefined,
         image: item.image,
         colors,
         category: item.category,

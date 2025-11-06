@@ -243,7 +243,7 @@ export async function GET(request: NextRequest) {
       FROM (
         SELECT total_amount
         FROM orders 
-        WHERE status IN ('confirmed', 'processing', 'shipped', 'delivered', 'completed', 'returned', 'cancelled', 'refunded')
+        WHERE status IN ('confirmed', 'processing', 'shipped', 'delivered', 'completed', 'returned')
         UNION ALL
         SELECT total_amount
         FROM pos_transactions 

@@ -33,15 +33,15 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
       objectUrlRef.current = null;
     }
 
-    if (file) {
+    if (uploadedUrl) {
+      // Prioritize uploaded URL over file preview
+      setPreviewUrl(uploadedUrl);
+      setImageError(false);
+    } else if (file) {
       // Create new object URL for file preview
       const url = URL.createObjectURL(file);
       objectUrlRef.current = url;
       setPreviewUrl(url);
-      setImageError(false);
-    } else if (uploadedUrl) {
-      // Use uploaded URL
-      setPreviewUrl(uploadedUrl);
       setImageError(false);
     } else {
       setPreviewUrl(null);

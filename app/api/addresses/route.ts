@@ -56,7 +56,15 @@ export async function GET(request: NextRequest) {
     }))
 
     console.log(`✅ API: Successfully fetched ${formattedAddresses.length} addresses`)
-    return NextResponse.json(formattedAddresses)
+    
+    // Add cache control headers to prevent browser caching
+    const response = NextResponse.json(formattedAddresses)
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
+    response.headers.set('Surrogate-Control', 'no-store')
+    
+    return response
 
   } catch (error) {
     console.error('❌ API: Error fetching addresses:', error)

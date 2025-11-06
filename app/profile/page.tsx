@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useCart } from "@/contexts/cart-context"
 import { useWishlist } from "@/contexts/wishlist-context"
 import { LocationSelector } from "@/components/ui/location-selector"
+import { useAddresses } from "@/hooks/use-addresses"
 import {
   Camera,
   MapPin,
@@ -70,8 +71,7 @@ export default function ProfilePage() {
   const { state: wishlistState } = useWishlist()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
-  const [addresses, setAddresses] = useState<Address[]>([])
-  const [addressLoading, setAddressLoading] = useState(false)
+  const { addresses, loading: addressLoading, fetchAddresses, createAddress, updateAddress, deleteAddress } = useAddresses()
   const [currentAddressId, setCurrentAddressId] = useState<string | null>(null)
   // Orders count state
   const [ordersCount, setOrdersCount] = useState<number>(0)
@@ -278,60 +278,23 @@ export default function ProfilePage() {
     }
   }
 
+  // Update address form data when addresses change
   useEffect(() => {
-    if (user && tokenReady) {
-      fetchAddresses()
-    }
-  }, [user, tokenReady])
-
-  const fetchAddresses = async (preserveFormData = false) => {
-    if (!user) return
-
-    try {
-      const token = localStorage.getItem('auth_token')
-      const response = await fetch('/api/addresses', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      })
-      
-      if (!response.ok) {
-        toast({
-          title: "Error",
-          description: "Failed to load addresses",
-          variant: "destructive",
-        })
-        return
-      }
-
-      const data = await response.json()
-      setAddresses(data || [])
-
-      // Only set form data if not preserving current form state
-      if (!preserveFormData && data && data.length > 0) {
-        const firstAddress = data[0]
-        setCurrentAddressId(firstAddress.id)
-        setAddressData({
-          street_address: firstAddress.address_line_1 || "",
-          city: firstAddress.city || "",
-          state_province: firstAddress.state || "",
-          zip_code: firstAddress.postal_code || "",
-          country: firstAddress.country || "Philippines",
-          barangay: firstAddress.barangay || "",
-          shipping_region: firstAddress.shipping_region || "Luzon",
-          is_default: firstAddress.is_default || false,
-        })
-      }
-    } catch {
-      toast({
-        title: "Error",
-        description: "Failed to load addresses",
-        variant: "destructive",
+    if (addresses && addresses.length > 0 && !currentAddressId) {
+      const firstAddress = addresses[0]
+      setCurrentAddressId(firstAddress.id)
+      setAddressData({
+        street_address: firstAddress.address_line_1 || "",
+        city: firstAddress.city || "",
+        state_province: firstAddress.state || "",
+        zip_code: firstAddress.postal_code || "",
+        country: firstAddress.country || "Philippines",
+        barangay: firstAddress.barangay || "",
+        shipping_region: firstAddress.shipping_region || "Luzon",
+        is_default: firstAddress.is_default || false,
       })
     }
-  }
+  }, [addresses, currentAddressId])
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     console.log('🔍 AVATAR: handleAvatarUpload called');

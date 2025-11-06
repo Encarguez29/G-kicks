@@ -110,7 +110,7 @@ async function findEligibleOrders() {
     FROM orders o
     WHERE o.status = 'shipped'
       AND o.shipped_at IS NOT NULL
-      AND DATEDIFF(NOW(), o.shipped_at) >= 30
+      AND DATEDIFF(NOW(), o.shipped_at) >= 7
       AND o.delivered_at IS NULL
       AND NOT EXISTS (
         SELECT 1 FROM refund_requests rr 
@@ -152,7 +152,7 @@ async function processOrderAutoDelivery(order: any) {
         order.id,
         'delivery_confirmation',
         'Order Automatically Confirmed as Delivered',
-        `Your order ${order.order_number} has been automatically marked as delivered after 30 days. If you have any issues with your order, please contact our support team.`,
+        `Your order ${order.order_number} has been automatically marked as delivered after 7 days. If you have any issues with your order, please contact our support team.`,
         currentTimestamp
       ])
     }
@@ -192,7 +192,7 @@ export async function getEligibleOrdersCount(): Promise<number> {
     FROM orders o
     WHERE o.status = 'shipped'
       AND o.shipped_at IS NOT NULL
-      AND DATEDIFF(NOW(), o.shipped_at) >= 30
+      AND DATEDIFF(NOW(), o.shipped_at) >= 7
       AND o.delivered_at IS NULL
       AND NOT EXISTS (
         SELECT 1 FROM refund_requests rr 

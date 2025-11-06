@@ -40,6 +40,21 @@ export function WishlistItemModal({ item, isOpen, onClose, onAddToCart }: Wishli
   const [stockData, setStockData] = useState<StockData>({})
   const [loading, setLoading] = useState(false)
 
+  // Normalize sizes to a string array regardless of source type
+  const normalizeSizes = (sizes: any): string[] => {
+    if (Array.isArray(sizes)) return sizes as string[]
+    if (typeof sizes === 'string') {
+      try {
+        const parsed = JSON.parse(sizes)
+        if (Array.isArray(parsed)) return parsed
+      } catch {
+        // Fallback: comma-separated string
+        return sizes.split(',').map((s: string) => s.trim()).filter(Boolean)
+      }
+    }
+    return []
+  }
+
   // Fetch stock data for the product
   const fetchStockData = async (productId: number) => {
     try {
@@ -74,15 +89,18 @@ export function WishlistItemModal({ item, isOpen, onClose, onAddToCart }: Wishli
 
   // Get available sizes for a specific color (sizes that are in stock)
   const getAvailableSizes = (color: string): string[] => {
-    if (!item?.sizes || item.sizes.length === 0) return []
-    
+    const sizesArray = normalizeSizes(item?.sizes)
+    if (sizesArray.length === 0) return []
+
     const colorStock = stockData[color]
     if (!colorStock) return []
-    
-    return item.sizes.filter(size => {
-      const stock = colorStock[size]
-      return typeof stock === 'number' && stock > 0
-    }).sort((a, b) => Number(a) - Number(b))
+
+    return sizesArray
+      .filter((size) => {
+        const stock = colorStock[size]
+        return typeof stock === 'number' && stock > 0
+      })
+      .sort((a, b) => Number(a) - Number(b))
   }
 
   // Get stock count for a specific color/size combination
@@ -252,9 +270,9 @@ export function WishlistItemModal({ item, isOpen, onClose, onAddToCart }: Wishli
             <label className="text-sm font-medium">Size</label>
             {loading ? (
               <div className="text-sm text-muted-foreground">Loading stock information...</div>
-            ) : selectedColor && selectedColor !== "Default" && item.sizes && item.sizes.length > 0 ? (
+            ) : selectedColor && selectedColor !== "Default" && normalizeSizes(item.sizes).length > 0 ? (
               <div className="flex flex-wrap gap-2">
-                {item.sizes.map((size) => {
+                {normalizeSizes(item.sizes).map((size) => {
                   const stock = getStockCount(selectedColor, size)
                   const hasStock = stock > 0
                   

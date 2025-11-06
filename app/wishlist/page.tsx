@@ -278,9 +278,7 @@ export default function WishlistPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        ₱{(item.price * 1.12).toLocaleString()} (incl. 12% VAT)
-                      </p>
+                      {/* VAT already included in displayed price; no extra breakdown */}
                     </div>
 
                     <div className="flex gap-2 pt-2">
